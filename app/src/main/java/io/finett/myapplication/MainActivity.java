@@ -316,7 +316,9 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         }
         
         body.put("messages", messages);
-
+        body.put("plugins", Arrays.asList(new HashMap<String, String>() {{
+            put("id", "web");
+        }}));
         // Отправляем запрос
         openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,

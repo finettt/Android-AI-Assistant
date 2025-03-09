@@ -53,4 +53,7 @@ dependencies {
     testImplementation libs.junit
     androidTestImplementation libs.ext.junit
     androidTestImplementation libs.espresso.core
+
+    // Chrome Custom Tabs
+    implementation 'androidx.browser:browser:1.7.0'
 }
