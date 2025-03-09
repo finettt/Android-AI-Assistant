@@ -37,6 +37,7 @@ import io.finett.myapplication.databinding.ActivityVoiceChatBinding;
 import io.finett.myapplication.model.ChatMessage;
 import io.finett.myapplication.util.PromptManager;
 import io.finett.myapplication.model.SystemPrompt;
+import io.finett.myapplication.util.CommandProcessor;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -66,6 +67,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         }
     };
     private PromptManager promptManager;
+    private CommandProcessor commandProcessor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -74,6 +76,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         setContentView(binding.getRoot());
 
         promptManager = new PromptManager(this);
+        commandProcessor = new CommandProcessor(this);
         apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
                 .getString(MainActivity.API_KEY_PREF, null);
 
@@ -115,6 +118,9 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
                 showError("Необходимо разрешение на использование микрофона");
                 finish();
             }
+        } else if (CommunicationManager.handlePermissionResult(requestCode, permissions, grantResults)) {
+            // Разрешение для звонка или SMS получено
+            Toast.makeText(this, "Разрешение получено", Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -402,7 +408,11 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         List<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches != null && !matches.isEmpty()) {
             String text = matches.get(0);
-            sendMessageToAPI(text);
+            // Пробуем обработать как команду
+            if (!commandProcessor.processCommand(text)) {
+                // Если это не команда, отправляем в API
+                sendMessageToAPI(text);
+            }
         }
     }
 
