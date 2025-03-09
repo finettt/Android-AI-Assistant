@@ -8,6 +8,7 @@ public class ChatMessage {
     private long timestamp;
     private String attachmentUri;
     private AttachmentType attachmentType;
+    private boolean isEdited;
 
     public enum AttachmentType {
         NONE,
@@ -20,6 +21,7 @@ public class ChatMessage {
         this.isUser = isUser;
         this.timestamp = System.currentTimeMillis();
         this.attachmentType = AttachmentType.NONE;
+        this.isEdited = false;
     }
 
     public ChatMessage(String content, boolean isUser, String attachmentUri, AttachmentType attachmentType) {
@@ -30,6 +32,11 @@ public class ChatMessage {
 
     public String getContent() {
         return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+        this.isEdited = true;
     }
 
     public boolean isUser() {
@@ -50,5 +57,9 @@ public class ChatMessage {
 
     public boolean hasAttachment() {
         return attachmentType != AttachmentType.NONE;
+    }
+
+    public boolean isEdited() {
+        return isEdited;
     }
 } 

@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -51,11 +52,15 @@ import io.finett.myapplication.model.Chat;
 import io.finett.myapplication.model.ChatMessage;
 import io.finett.myapplication.util.ImageUtil;
 import io.finett.myapplication.util.StorageUtil;
+import io.finett.myapplication.util.UserManager;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnChatClickListener, ChatAdapter.OnAttachmentClickListener {
+public class MainActivity extends AppCompatActivity implements 
+        ChatsAdapter.OnChatClickListener, 
+        ChatAdapter.OnAttachmentClickListener,
+        ChatAdapter.OnMessageActionListener {
     private ActivityMainBinding binding;
     private ChatAdapter chatAdapter;
     private ChatsAdapter chatsAdapter;
@@ -77,6 +82,7 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         new AIModel("google/gemma-7b-it", "Gemma 7B", "Новая модель от Google")
     );
     private List<Chat> chats = new ArrayList<>();
+    private UserManager userManager;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -100,13 +106,17 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
-        loadSavedChats();
+        userManager = new UserManager(this);
+        
         setupToolbar();
         setupRecyclerViews();
         setupMessageInput();
         setupApi();
         setupNewChatButton();
         setupAttachButton();
+        
+        // Загружаем чаты и восстанавливаем последний активный
+        loadSavedChats();
         
         // Проверяем наличие API ключа
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -115,12 +125,38 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         if (apiKey == null) {
             showApiKeyDialog();
         }
+
+        // Показываем диалог регистрации, если нужно
+        if (!userManager.isRegistered()) {
+            showRegistrationDialog();
+        }
     }
 
     private void loadSavedChats() {
         chats = StorageUtil.loadChats(this);
         if (chatsAdapter != null) {
             chatsAdapter.setChats(chats);
+        }
+
+        // Загружаем последний активный чат
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String lastActiveChatId = prefs.getString("last_active_chat_id", null);
+        
+        if (lastActiveChatId != null && !chats.isEmpty()) {
+            // Ищем чат по ID
+            for (Chat chat : chats) {
+                if (chat.getId().equals(lastActiveChatId)) {
+                    currentChat = chat;
+                    chatAdapter.setMessages(chat.getMessages());
+                    updateToolbarTitle();
+                    break;
+                }
+            }
+        } else if (!chats.isEmpty()) {
+            // Если нет сохраненного активного чата, берем первый из списка
+            currentChat = chats.get(0);
+            chatAdapter.setMessages(currentChat.getMessages());
+            updateToolbarTitle();
         }
     }
 
@@ -135,7 +171,7 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
 
     private void setupRecyclerViews() {
         // Настройка списка сообщений
-        chatAdapter = new ChatAdapter(this);
+        chatAdapter = new ChatAdapter(this, this);
         binding.chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.chatRecyclerView.setAdapter(chatAdapter);
 
@@ -208,15 +244,14 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
     private void updateToolbarTitle() {
         if (currentChat != null) {
             binding.toolbar.setTitle(currentChat.getTitle());
-            binding.toolbar.setSubtitle(
-                availableModels.stream()
-                    .filter(m -> m.getId().equals(currentChat.getModelId()))
-                    .findFirst()
-                    .map(AIModel::getName)
-                    .orElse("")
-            );
+            String modelName = availableModels.stream()
+                .filter(m -> m.getId().equals(currentChat.getModelId()))
+                .findFirst()
+                .map(AIModel::getName)
+                .orElse(currentChat.getModelId());
+            binding.toolbar.setSubtitle(modelName);
         } else {
-            binding.toolbar.setTitle("Чат");
+            binding.toolbar.setTitle(getString(R.string.app_name));
             binding.toolbar.setSubtitle(null);
         }
     }
@@ -227,6 +262,11 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         chatAdapter.setMessages(chat.getMessages());
         binding.drawerLayout.close();
         updateToolbarTitle();
+        
+        // Сохраняем ID активного чата
+        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+        editor.putString("last_active_chat_id", chat.getId());
+        editor.apply();
     }
 
     private void showApiKeyDialog() {
@@ -320,9 +360,6 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
         }
         
         body.put("messages", messages);
-        body.put("plugins", Arrays.asList(new HashMap<String, String>() {{
-            put("id", "web");
-        }}));
         // Отправляем запрос
         openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
@@ -335,27 +372,43 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
                 if (response.isSuccessful() && response.body() != null) {
                     try {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
-                        Map<String, Object> choice = choices.get(0);
-                        Map<String, String> message = (Map<String, String>) choice.get("message");
-                        String content = message.get("content");
-                        
-                        ChatMessage botMessage = new ChatMessage(content, false);
-                        runOnUiThread(() -> {
-                            chatAdapter.addMessage(botMessage);
-                            currentChat.addMessage(botMessage);
-                            binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
-                            saveChats();
-                        });
+                        if (choices != null && !choices.isEmpty()) {
+                            Map<String, Object> choice = choices.get(0);
+                            Map<String, String> message = (Map<String, String>) choice.get("message");
+                            if (message != null && message.containsKey("content")) {
+                                String content = message.get("content");
+                                ChatMessage botMessage = new ChatMessage(content, false);
+                                runOnUiThread(() -> {
+                                    chatAdapter.addMessage(botMessage);
+                                    currentChat.addMessage(botMessage);
+                                    binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                                    saveChats();
+                                });
+                            } else {
+                                showError("Некорректный формат ответа от сервера");
+                            }
+                        } else {
+                            showError("Пустой ответ от сервера");
+                        }
                     } catch (Exception e) {
-                        showError("Ошибка при обработке ответа");
+                        showError("Ошибка при обработке ответа: " + e.getMessage());
                     }
                 } else {
-                    showError("Ошибка при получении ответа");
-                    if (response.code() == 401) {
-                        runOnUiThread(() -> {
-                            apiKey = null;
-                            showApiKeyDialog();
-                        });
+                    try {
+                        if (response.errorBody() != null) {
+                            String errorBody = response.errorBody().string();
+                            showError("Ошибка сервера: " + errorBody);
+                        } else {
+                            showError("Ошибка сервера: " + response.code());
+                        }
+                        if (response.code() == 401) {
+                            runOnUiThread(() -> {
+                                apiKey = null;
+                                showApiKeyDialog();
+                            });
+                        }
+                    } catch (Exception e) {
+                        showError("Ошибка при обработке ответа сервера");
                     }
                 }
             }
@@ -534,27 +587,43 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
                 if (response.isSuccessful() && response.body() != null) {
                     try {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
-                        Map<String, Object> choice = choices.get(0);
-                        Map<String, String> message = (Map<String, String>) choice.get("message");
-                        String content = message.get("content");
-                        
-                        ChatMessage botMessage = new ChatMessage(content, false);
-                        runOnUiThread(() -> {
-                            chatAdapter.addMessage(botMessage);
-                            currentChat.addMessage(botMessage);
-                            binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
-                            saveChats();
-                        });
+                        if (choices != null && !choices.isEmpty()) {
+                            Map<String, Object> choice = choices.get(0);
+                            Map<String, String> message = (Map<String, String>) choice.get("message");
+                            if (message != null && message.containsKey("content")) {
+                                String content = message.get("content");
+                                ChatMessage botMessage = new ChatMessage(content, false);
+                                runOnUiThread(() -> {
+                                    chatAdapter.addMessage(botMessage);
+                                    currentChat.addMessage(botMessage);
+                                    binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                                    saveChats();
+                                });
+                            } else {
+                                showError("Некорректный формат ответа от сервера");
+                            }
+                        } else {
+                            showError("Пустой ответ от сервера");
+                        }
                     } catch (Exception e) {
-                        showError("Ошибка при обработке ответа");
+                        showError("Ошибка при обработке ответа: " + e.getMessage());
                     }
                 } else {
-                    showError("Ошибка при получении ответа");
-                    if (response.code() == 401) {
-                        runOnUiThread(() -> {
-                            apiKey = null;
-                            showApiKeyDialog();
-                        });
+                    try {
+                        if (response.errorBody() != null) {
+                            String errorBody = response.errorBody().string();
+                            showError("Ошибка сервера: " + errorBody);
+                        } else {
+                            showError("Ошибка сервера: " + response.code());
+                        }
+                        if (response.code() == 401) {
+                            runOnUiThread(() -> {
+                                apiKey = null;
+                                showApiKeyDialog();
+                            });
+                        }
+                    } catch (Exception e) {
+                        showError("Ошибка при обработке ответа сервера");
                     }
                 }
             }
@@ -578,5 +647,69 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
                 showError("Не удалось открыть файл");
             }
         }
+    }
+
+    @Override
+    public void onEditMessage(ChatMessage message, int position) {
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_edit_message, null);
+        TextInputEditText input = dialogView.findViewById(R.id.messageInput);
+        input.setText(message.getContent());
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Редактировать сообщение")
+                .setView(dialogView)
+                .setPositiveButton("Сохранить", (dialog, which) -> {
+                    String newContent = input.getText().toString().trim();
+                    if (!newContent.isEmpty()) {
+                        message.setContent(newContent);
+                        chatAdapter.updateMessage(position);
+                        saveChats();
+                    }
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    @Override
+    public void onDeleteMessage(ChatMessage message, int position) {
+        new MaterialAlertDialogBuilder(this)
+                .setTitle("Удалить сообщение")
+                .setMessage("Вы уверены, что хотите удалить это сообщение?")
+                .setPositiveButton("Удалить", (dialog, which) -> {
+                    currentChat.getMessages().remove(position);
+                    chatAdapter.removeMessage(position);
+                    saveChats();
+                })
+                .setNegativeButton("Отмена", null)
+                .show();
+    }
+
+    private void showRegistrationDialog() {
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_registration, null);
+        TextInputEditText nameInput = dialogView.findViewById(R.id.nameInput);
+
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setView(dialogView)
+                .setCancelable(false)
+                .setPositiveButton(R.string.action_save, null)
+                .create();
+
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(view -> {
+                String name = nameInput.getText().toString().trim();
+                if (TextUtils.isEmpty(name)) {
+                    nameInput.setError(getString(R.string.error_empty_name));
+                    return;
+                }
+                
+                userManager.registerUser(name);
+                Toast.makeText(this, 
+                    getString(R.string.welcome_message, name),
+                    Toast.LENGTH_LONG).show();
+                dialog.dismiss();
+            });
+        });
+
+        dialog.show();
     }
 }

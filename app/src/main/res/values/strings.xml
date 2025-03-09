@@ -2,4 +2,11 @@
 <resources>
     <string name="app_name">Robo</string>
     <string name="voice_input">Голосовой ввод</string>
+    <string name="registration_title">Добро пожаловать!</string>
+    <string name="registration_description">Пожалуйста, представьтесь. Это имя будет использоваться для обращения к вам.</string>
+    <string name="name_hint">Ваше имя</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="error_empty_name">Пожалуйста, введите ваше имя</string>
+    <string name="welcome_message">Привет, %1$s! Я - Robo, ваш голосовой помощник.</string>
 </resources>

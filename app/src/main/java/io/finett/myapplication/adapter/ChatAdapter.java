@@ -6,6 +6,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
@@ -23,13 +24,20 @@ import io.finett.myapplication.model.ChatMessage;
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHolder> {
     private List<ChatMessage> messages = new ArrayList<>();
     private OnAttachmentClickListener attachmentClickListener;
+    private OnMessageActionListener messageActionListener;
 
     public interface OnAttachmentClickListener {
         void onAttachmentClick(ChatMessage message);
     }
 
-    public ChatAdapter(OnAttachmentClickListener listener) {
-        this.attachmentClickListener = listener;
+    public interface OnMessageActionListener {
+        void onEditMessage(ChatMessage message, int position);
+        void onDeleteMessage(ChatMessage message, int position);
+    }
+
+    public ChatAdapter(OnAttachmentClickListener attachmentListener, OnMessageActionListener actionListener) {
+        this.attachmentClickListener = attachmentListener;
+        this.messageActionListener = actionListener;
     }
 
     @NonNull
@@ -65,8 +73,20 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         if (!message.getContent().isEmpty()) {
             holder.messageText.setVisibility(View.VISIBLE);
             holder.messageText.setText(message.getContent());
+            holder.editedMark.setVisibility(message.isEdited() ? View.VISIBLE : View.GONE);
         } else {
             holder.messageText.setVisibility(View.GONE);
+            holder.editedMark.setVisibility(View.GONE);
+        }
+
+        // Настраиваем контекстное меню для сообщений пользователя
+        if (message.isUser()) {
+            holder.messageContainer.setOnLongClickListener(v -> {
+                showMessageContextMenu(v, message, holder.getAdapterPosition());
+                return true;
+            });
+        } else {
+            holder.messageContainer.setOnLongClickListener(null);
         }
 
         // Обрабатываем вложения
@@ -118,6 +138,38 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         }
     }
 
+    private void showMessageContextMenu(View view, ChatMessage message, int position) {
+        PopupMenu popup = new PopupMenu(view.getContext(), view);
+        popup.inflate(R.menu.menu_message_context);
+        
+        popup.setOnMenuItemClickListener(item -> {
+            int itemId = item.getItemId();
+            if (itemId == R.id.action_edit) {
+                if (messageActionListener != null) {
+                    messageActionListener.onEditMessage(message, position);
+                }
+                return true;
+            } else if (itemId == R.id.action_delete) {
+                if (messageActionListener != null) {
+                    messageActionListener.onDeleteMessage(message, position);
+                }
+                return true;
+            }
+            return false;
+        });
+        
+        popup.show();
+    }
+
+    public void updateMessage(int position) {
+        notifyItemChanged(position);
+    }
+
+    public void removeMessage(int position) {
+        messages.remove(position);
+        notifyItemRemoved(position);
+    }
+
     @Override
     public int getItemCount() {
         return messages.size();
@@ -141,6 +193,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
     static class MessageViewHolder extends RecyclerView.ViewHolder {
         LinearLayout messageContainer;
         TextView messageText;
+        TextView editedMark;
         ImageView attachedImage;
         TextView imageCaption;
         LinearLayout fileAttachmentLayout;
@@ -150,6 +203,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
             super(itemView);
             messageContainer = itemView.findViewById(R.id.messageContainer);
             messageText = itemView.findViewById(R.id.messageText);
+            editedMark = itemView.findViewById(R.id.editedMark);
             attachedImage = itemView.findViewById(R.id.attachedImage);
             imageCaption = itemView.findViewById(R.id.imageCaption);
             fileAttachmentLayout = itemView.findViewById(R.id.fileAttachmentLayout);
