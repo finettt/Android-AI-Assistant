@@ -35,6 +35,7 @@ import io.finett.myapplication.api.ApiClient;
 import io.finett.myapplication.api.OpenRouterApi;
 import io.finett.myapplication.databinding.ActivityVoiceChatBinding;
 import io.finett.myapplication.model.ChatMessage;
+import io.finett.myapplication.util.CommunicationManager;
 import io.finett.myapplication.util.PromptManager;
 import io.finett.myapplication.model.SystemPrompt;
 import io.finett.myapplication.util.CommandProcessor;
@@ -76,7 +77,6 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         setContentView(binding.getRoot());
 
         promptManager = new PromptManager(this);
-        commandProcessor = new CommandProcessor(this);
         apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
                 .getString(MainActivity.API_KEY_PREF, null);
 
@@ -197,6 +197,9 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
                     runOnUiThread(() -> startListening());
                 }
             });
+            
+            // Инициализируем CommandProcessor после успешной инициализации TextToSpeech
+            commandProcessor = new CommandProcessor(this, textToSpeech);
         } else {
             showError("Ошибка инициализации синтеза речи");
         }

@@ -8,7 +8,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.telephony.SmsManager;
 import android.widget.Toast;
-
+import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
@@ -51,13 +51,20 @@ public class CommunicationManager {
             return;
         }
         
-        try {
-            Intent intent = new Intent(Intent.ACTION_CALL);
-            intent.setData(Uri.parse("tel:" + phoneNumber));
-            activity.startActivity(intent);
-        } catch (Exception e) {
-            Toast.makeText(context, "Не удалось совершить звонок", Toast.LENGTH_SHORT).show();
-        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Подтверждение звонка")
+                .setMessage("Вы действительно хотите позвонить на номер " + phoneNumber + "?")
+                .setPositiveButton("Да", (dialog, which) -> {
+                    try {
+                        Intent intent = new Intent(Intent.ACTION_CALL);
+                        intent.setData(Uri.parse("tel:" + phoneNumber));
+                        activity.startActivity(intent);
+                    } catch (Exception e) {
+                        Toast.makeText(context, "Не удалось совершить звонок", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Нет", null)
+                .show();
     }
     
     public void sendSms(String phoneNumber, String message) {
@@ -65,13 +72,20 @@ public class CommunicationManager {
             return;
         }
         
-        try {
-            SmsManager smsManager = SmsManager.getDefault();
-            smsManager.sendTextMessage(phoneNumber, null, message, null, null);
-            Toast.makeText(context, "SMS отправлено", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(context, "Не удалось отправить SMS", Toast.LENGTH_SHORT).show();
-        }
+        new AlertDialog.Builder(activity)
+                .setTitle("Подтверждение отправки SMS")
+                .setMessage("Отправить сообщение на номер " + phoneNumber + "?\n\nТекст: " + message)
+                .setPositiveButton("Да", (dialog, which) -> {
+                    try {
+                        SmsManager smsManager = SmsManager.getDefault();
+                        smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+                        Toast.makeText(context, "SMS отправлено", Toast.LENGTH_SHORT).show();
+                    } catch (Exception e) {
+                        Toast.makeText(context, "Не удалось отправить SMS", Toast.LENGTH_SHORT).show();
+                    }
+                })
+                .setNegativeButton("Нет", null)
+                .show();
     }
     
     public static boolean handlePermissionResult(int requestCode, String[] permissions,
