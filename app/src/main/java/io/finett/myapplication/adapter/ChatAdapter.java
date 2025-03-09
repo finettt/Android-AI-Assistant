@@ -48,13 +48,18 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         ViewGroup.LayoutParams containerParams = holder.messageContainer.getLayoutParams();
         if (message.isUser()) {
             holder.messageContainer.setBackgroundResource(R.drawable.bg_message_user);
+            holder.messageText.setTextColor(holder.itemView.getContext().getColor(R.color.message_user_text));
             containerParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-            holder.messageContainer.setLayoutParams(containerParams);
+            ((LinearLayout.LayoutParams) holder.messageContainer.getLayoutParams())
+                .gravity = Gravity.END;
         } else {
-            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_bot);
-            containerParams.width = ViewGroup.LayoutParams.MATCH_PARENT;
-            holder.messageContainer.setLayoutParams(containerParams);
+            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_ai);
+            holder.messageText.setTextColor(holder.itemView.getContext().getColor(R.color.message_ai_text));
+            containerParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
+            ((LinearLayout.LayoutParams) holder.messageContainer.getLayoutParams())
+                .gravity = Gravity.START;
         }
+        holder.messageContainer.setLayoutParams(containerParams);
 
         // Показываем текст сообщения, если он есть
         if (!message.getContent().isEmpty()) {
