@@ -5,18 +5,15 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Handler;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
-import android.speech.tts.TextToSpeech.OnInitListener;
 import android.speech.tts.UtteranceProgressListener;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
-import android.view.animation.Animator;
-import android.view.animation.AnimatorInflater;
-import android.view.animation.ObjectAnimator;
+import android.animation.AnimatorInflater;
+import android.animation.ObjectAnimator;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -56,7 +53,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     private TextToSpeech textToSpeech;
     private boolean isListening = false;
     private boolean isSpeaking = false;
-    private static final String MODEL_ID = "gryphe/mythomax-l2-13b";
+    private static final String MODEL_ID = "minimax/minimax-01";
     private String apiKey;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private static final long SPEECH_TIMEOUT_MILLIS = 1500; // 1.5 секунды тишины для завершения
@@ -233,11 +230,6 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
         
-        // Дополнительные настройки для улучшения распознавания
-        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5); // Получаем больше вариантов распознавания
-        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true); // Предпочитаем оффлайн распознавание
-        intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
-        
         try {
             speechRecognizer.startListening(intent);
             isListening = true;
@@ -245,7 +237,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             lastVoiceTime = System.currentTimeMillis();
             binding.voiceButton.setImageResource(R.drawable.ic_stop);
             
-            // Показываем и анимируем индикаторы
+            // Показываем индикаторы
             binding.voiceIndicatorsContainer.setVisibility(View.VISIBLE);
             binding.voiceWaveIndicator.setVisibility(View.VISIBLE);
             
@@ -262,7 +254,8 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             // Анимируем индикаторы звука
             animateSoundWaves();
         } catch (Exception e) {
-            showError("Не удалось запустить распознавание речи");
+            showError("Не удалось запустить распознавание речи: " + e.getMessage());
+            e.printStackTrace();
         }
     }
 

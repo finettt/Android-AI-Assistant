@@ -67,7 +67,7 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private List<AIModel> availableModels = Arrays.asList(
-        new AIModel("gryphe/mythomax-l2-13b", "MythoMax-L2", "Мощная модель для голосового помощника"),
+        new AIModel("minimax/minimax-01", "MiniMax-01", "Мощная модель для голосового помощника"),
         new AIModel("anthropic/claude-3-opus", "Claude 3 Opus", "Самая мощная модель Claude"),
         new AIModel("anthropic/claude-3-sonnet", "Claude 3 Sonnet", "Быстрая и эффективная модель Claude"),
         new AIModel("anthropic/claude-3-haiku", "Claude 3 Haiku", "Компактная модель Claude"),

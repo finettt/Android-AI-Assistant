@@ -44,6 +44,8 @@ dependencies {
     
     // Glide для работы с изображениями
     implementation 'com.github.bumptech.glide:glide:4.16.0'
+    implementation libs.animation.graphics.android
+    implementation libs.core.animation
     annotationProcessor 'com.github.bumptech.glide:compiler:4.16.0'
     
     // Lifecycle компоненты
