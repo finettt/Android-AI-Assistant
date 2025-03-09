@@ -18,10 +18,12 @@ public class CommunicationManager {
     
     private final Context context;
     private final Activity activity;
+    private final ContactsManager contactsManager;
     
     public CommunicationManager(Activity activity) {
         this.activity = activity;
         this.context = activity;
+        this.contactsManager = new ContactsManager(activity);
     }
     
     public boolean checkCallPermission() {
@@ -46,18 +48,30 @@ public class CommunicationManager {
         return true;
     }
     
-    public void makePhoneCall(String phoneNumber) {
+    public void makePhoneCall(String nameOrNumber) {
         if (!checkCallPermission()) {
             return;
         }
         
+        String displayName = nameOrNumber;
+        String phoneNumber = nameOrNumber;
+        
+        // Пробуем найти контакт по имени
+        ContactsManager.Contact contact = contactsManager.findContactByName(nameOrNumber);
+        if (contact != null) {
+            displayName = contact.name;
+            phoneNumber = contact.phoneNumber;
+        }
+        
+        final String finalPhoneNumber = phoneNumber;
         new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение звонка")
-                .setMessage("Вы действительно хотите позвонить на номер " + phoneNumber + "?")
+                .setMessage("Вы действительно хотите позвонить " + 
+                        (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) + "?")
                 .setPositiveButton("Да", (dialog, which) -> {
                     try {
                         Intent intent = new Intent(Intent.ACTION_CALL);
-                        intent.setData(Uri.parse("tel:" + phoneNumber));
+                        intent.setData(Uri.parse("tel:" + finalPhoneNumber));
                         activity.startActivity(intent);
                     } catch (Exception e) {
                         Toast.makeText(context, "Не удалось совершить звонок", Toast.LENGTH_SHORT).show();
@@ -67,18 +81,31 @@ public class CommunicationManager {
                 .show();
     }
     
-    public void sendSms(String phoneNumber, String message) {
+    public void sendSms(String nameOrNumber, String message) {
         if (!checkSmsPermission()) {
             return;
         }
         
+        String displayName = nameOrNumber;
+        String phoneNumber = nameOrNumber;
+        
+        // Пробуем найти контакт по имени
+        ContactsManager.Contact contact = contactsManager.findContactByName(nameOrNumber);
+        if (contact != null) {
+            displayName = contact.name;
+            phoneNumber = contact.phoneNumber;
+        }
+        
+        final String finalPhoneNumber = phoneNumber;
         new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение отправки SMS")
-                .setMessage("Отправить сообщение на номер " + phoneNumber + "?\n\nТекст: " + message)
+                .setMessage("Отправить сообщение " + 
+                        (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) +
+                        "?\n\nТекст: " + message)
                 .setPositiveButton("Да", (dialog, which) -> {
                     try {
                         SmsManager smsManager = SmsManager.getDefault();
-                        smsManager.sendTextMessage(phoneNumber, null, message, null, null);
+                        smsManager.sendTextMessage(finalPhoneNumber, null, message, null, null);
                         Toast.makeText(context, "SMS отправлено", Toast.LENGTH_SHORT).show();
                     } catch (Exception e) {
                         Toast.makeText(context, "Не удалось отправить SMS", Toast.LENGTH_SHORT).show();
@@ -93,6 +120,6 @@ public class CommunicationManager {
         if (requestCode == PERMISSION_REQUEST_CALL || requestCode == PERMISSION_REQUEST_SMS) {
             return grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
         }
-        return false;
+        return ContactsManager.handlePermissionResult(requestCode, permissions, grantResults);
     }
 } 

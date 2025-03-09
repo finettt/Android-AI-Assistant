@@ -18,23 +18,23 @@ public class CommandProcessor {
         command = command.toLowerCase();
         
         // Проверяем команду звонка
-        Pattern callPattern = Pattern.compile("(позвони|набери|вызови|звонок)\\s+(?:на номер\\s+)?(\\+?\\d+)");
+        Pattern callPattern = Pattern.compile("(позвони|набери|вызови|звонок)\\s+(?:на номер\\s+)?(\\+?\\d+|[а-яё\\s]+)");
         Matcher callMatcher = callPattern.matcher(command);
         if (callMatcher.find()) {
-            String phoneNumber = callMatcher.group(2);
-            communicationManager.makePhoneCall(phoneNumber);
-            speakResponse("Набираю номер " + formatPhoneNumber(phoneNumber));
+            String nameOrNumber = callMatcher.group(2);
+            communicationManager.makePhoneCall(nameOrNumber);
+            speakResponse("Набираю " + nameOrNumber);
             return true;
         }
         
         // Проверяем команду отправки SMS
-        Pattern smsPattern = Pattern.compile("(отправь|напиши|отправить)\\s+(?:смс|сообщение)\\s+(?:на номер\\s+)?(\\+?\\d+)\\s+(?:с текстом\\s+)?(.+)");
+        Pattern smsPattern = Pattern.compile("(отправь|напиши|отправить)\\s+(?:смс|сообщение)\\s+(?:на номер\\s+)?(\\+?\\d+|[а-яё\\s]+)\\s+(?:с текстом\\s+)?(.+)");
         Matcher smsMatcher = smsPattern.matcher(command);
         if (smsMatcher.find()) {
-            String phoneNumber = smsMatcher.group(2);
+            String nameOrNumber = smsMatcher.group(2);
             String message = smsMatcher.group(3);
-            communicationManager.sendSms(phoneNumber, message);
-            speakResponse("Отправляю сообщение на номер " + formatPhoneNumber(phoneNumber));
+            communicationManager.sendSms(nameOrNumber, message);
+            speakResponse("Отправляю сообщение " + nameOrNumber);
             return true;
         }
         
