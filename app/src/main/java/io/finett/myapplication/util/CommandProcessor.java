@@ -2,16 +2,19 @@ package io.finett.myapplication.util;
 
 import android.app.Activity;
 import android.speech.tts.TextToSpeech;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CommandProcessor {
     private final CommunicationManager communicationManager;
     private final TextToSpeech textToSpeech;
+    private final ContactsManager contactsManager;
     
     public CommandProcessor(Activity activity, TextToSpeech textToSpeech) {
         this.communicationManager = new CommunicationManager(activity);
         this.textToSpeech = textToSpeech;
+        this.contactsManager = new ContactsManager(activity);
     }
     
     public boolean processCommand(String command) {
@@ -22,8 +25,22 @@ public class CommandProcessor {
         Matcher callMatcher = callPattern.matcher(command);
         if (callMatcher.find()) {
             String nameOrNumber = callMatcher.group(2);
+            
+            if (nameOrNumber.matches("\\+?\\d+")) {
+                speakResponse("Набираю номер " + formatPhoneNumber(nameOrNumber));
+            } else {
+                List<ContactsManager.Contact> contacts = contactsManager.findContactsByPartialName(nameOrNumber);
+                if (contacts.isEmpty()) {
+                    speakResponse("Контакт " + nameOrNumber + " не найден");
+                    return true;
+                } else if (contacts.size() == 1) {
+                    speakResponse("Набираю " + contacts.get(0).name);
+                } else {
+                    speakResponse("Найдено несколько контактов с похожим именем. Выберите нужный контакт на экране.");
+                }
+            }
+            
             communicationManager.makePhoneCall(nameOrNumber);
-            speakResponse("Набираю " + nameOrNumber);
             return true;
         }
         
@@ -33,8 +50,22 @@ public class CommandProcessor {
         if (smsMatcher.find()) {
             String nameOrNumber = smsMatcher.group(2);
             String message = smsMatcher.group(3);
+            
+            if (nameOrNumber.matches("\\+?\\d+")) {
+                speakResponse("Отправляю сообщение на номер " + formatPhoneNumber(nameOrNumber));
+            } else {
+                List<ContactsManager.Contact> contacts = contactsManager.findContactsByPartialName(nameOrNumber);
+                if (contacts.isEmpty()) {
+                    speakResponse("Контакт " + nameOrNumber + " не найден");
+                    return true;
+                } else if (contacts.size() == 1) {
+                    speakResponse("Отправляю сообщение " + contacts.get(0).name);
+                } else {
+                    speakResponse("Найдено несколько контактов с похожим именем. Выберите нужный контакт на экране.");
+                }
+            }
+            
             communicationManager.sendSms(nameOrNumber, message);
-            speakResponse("Отправляю сообщение " + nameOrNumber);
             return true;
         }
         
