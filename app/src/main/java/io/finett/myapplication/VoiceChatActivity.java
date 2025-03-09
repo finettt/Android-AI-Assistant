@@ -16,6 +16,7 @@ import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -32,6 +33,8 @@ import io.finett.myapplication.api.ApiClient;
 import io.finett.myapplication.api.OpenRouterApi;
 import io.finett.myapplication.databinding.ActivityVoiceChatBinding;
 import io.finett.myapplication.model.ChatMessage;
+import io.finett.myapplication.util.PromptManager;
+import io.finett.myapplication.model.SystemPrompt;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -60,6 +63,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             }
         }
     };
+    private PromptManager promptManager;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,6 +71,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         binding = ActivityVoiceChatBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        promptManager = new PromptManager(this);
         apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
                 .getString(MainActivity.API_KEY_PREF, null);
 
@@ -76,6 +81,14 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         setupApi();
         checkPermissionAndInitRecognizer();
         initTextToSpeech();
+        binding.toolbar.inflateMenu(R.menu.voice_chat_menu);
+        binding.toolbar.setOnMenuItemClickListener(item -> {
+            if (item.getItemId() == R.id.action_manage_prompts) {
+                showPromptManagementDialog();
+                return true;
+            }
+            return false;
+        });
     }
 
     private void checkPermissionAndInitRecognizer() {
@@ -230,17 +243,32 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         body.put("model", MODEL_ID);
         
         ArrayList<Map<String, Object>> messages = new ArrayList<>();
+        
+        // Добавляем системный промпт
+        SystemPrompt activePrompt = promptManager.getActivePrompt();
+        if (activePrompt != null) {
+            Map<String, Object> systemMessage = new HashMap<>();
+            systemMessage.put("role", "system");
+            ArrayList<Map<String, Object>> systemContent = new ArrayList<>();
+            Map<String, Object> systemTextContent = new HashMap<>();
+            systemTextContent.put("type", "text");
+            systemTextContent.put("text", activePrompt.getContent());
+            systemContent.add(systemTextContent);
+            systemMessage.put("content", systemContent);
+            messages.add(systemMessage);
+        }
+        
+        // Добавляем сообщение пользователя
         Map<String, Object> messageMap = new HashMap<>();
         messageMap.put("role", "user");
-        
         ArrayList<Map<String, Object>> content = new ArrayList<>();
         Map<String, Object> textContent = new HashMap<>();
         textContent.put("type", "text");
         textContent.put("text", message);
         content.add(textContent);
-        
         messageMap.put("content", content);
         messages.add(messageMap);
+        
         body.put("messages", messages);
 
         openRouterApi.getChatCompletion(
@@ -415,5 +443,85 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         if (textToSpeech != null) {
             textToSpeech.stop();
         }
+    }
+
+    private void showPromptManagementDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Управление промптами");
+
+        List<SystemPrompt> prompts = promptManager.getPrompts();
+        String[] promptDescriptions = new String[prompts.size()];
+        boolean[] checkedItems = new boolean[prompts.size()];
+        
+        for (int i = 0; i < prompts.size(); i++) {
+            promptDescriptions[i] = prompts.get(i).getDescription();
+            checkedItems[i] = prompts.get(i).isActive();
+        }
+
+        builder.setMultiChoiceItems(promptDescriptions, checkedItems, (dialog, which, isChecked) -> {
+            for (int i = 0; i < checkedItems.length; i++) {
+                checkedItems[i] = (i == which && isChecked);
+            }
+            if (isChecked) {
+                promptManager.setActivePrompt(prompts.get(which));
+            }
+        });
+
+        builder.setPositiveButton("Добавить", (dialog, which) -> showPromptEditDialog(null));
+        builder.setNeutralButton("Редактировать", (dialog, which) -> {
+            for (int i = 0; i < checkedItems.length; i++) {
+                if (checkedItems[i]) {
+                    showPromptEditDialog(prompts.get(i));
+                    break;
+                }
+            }
+        });
+        builder.setNegativeButton("Удалить", (dialog, which) -> {
+            for (int i = 0; i < checkedItems.length; i++) {
+                if (checkedItems[i]) {
+                    promptManager.deletePrompt(prompts.get(i));
+                    break;
+                }
+            }
+        });
+
+        builder.show();
+    }
+
+    private void showPromptEditDialog(SystemPrompt prompt) {
+        View view = getLayoutInflater().inflate(R.layout.dialog_prompt_edit, null);
+        TextInputEditText descriptionInput = view.findViewById(R.id.promptDescriptionInput);
+        TextInputEditText contentInput = view.findViewById(R.id.promptContentInput);
+
+        if (prompt != null) {
+            descriptionInput.setText(prompt.getDescription());
+            contentInput.setText(prompt.getContent());
+        }
+
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle(prompt == null ? "Новый промпт" : "Редактирование промпта");
+        builder.setView(view);
+
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            String description = descriptionInput.getText().toString();
+            String content = contentInput.getText().toString();
+
+            if (description.isEmpty() || content.isEmpty()) {
+                Toast.makeText(this, "Заполните все поля", Toast.LENGTH_SHORT).show();
+                return;
+            }
+
+            if (prompt == null) {
+                SystemPrompt newPrompt = new SystemPrompt(content, description);
+                promptManager.savePrompt(newPrompt);
+            } else {
+                prompt.setDescription(description);
+                prompt.setContent(content);
+                promptManager.savePrompt(prompt);
+            }
+        });
+
+        builder.setNegativeButton("Отмена", null);
+        builder.show();
     }
 } 
