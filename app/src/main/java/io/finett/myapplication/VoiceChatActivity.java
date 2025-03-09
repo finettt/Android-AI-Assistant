@@ -46,7 +46,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class VoiceChatActivity extends AppCompatActivity implements RecognitionListener, 
-        ChatAdapter.OnAttachmentClickListener, TextToSpeech.OnInitListener {
+        ChatAdapter.OnAttachmentClickListener, ChatAdapter.OnMessageActionListener, TextToSpeech.OnInitListener {
     private ActivityVoiceChatBinding binding;
     private ChatAdapter chatAdapter;
     private OpenRouterApi openRouterApi;
@@ -132,7 +132,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     }
 
     private void setupRecyclerView() {
-        chatAdapter = new ChatAdapter(this);
+        chatAdapter = new ChatAdapter(this, this);
         binding.chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.chatRecyclerView.setAdapter(chatAdapter);
     }
@@ -562,5 +562,15 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
 
         builder.setNegativeButton("Отмена", null);
         builder.show();
+    }
+
+    @Override
+    public void onEditMessage(ChatMessage message, int position) {
+        // В голосовом чате редактирование не требуется
+    }
+
+    @Override
+    public void onDeleteMessage(ChatMessage message, int position) {
+        // В голосовом чате удаление не требуется
     }
 } 
