@@ -71,7 +71,8 @@ public class CommunicationManager {
         if (contacts.size() == 1) {
             showCallConfirmation(contacts.get(0), contacts.get(0).phoneNumber);
         } else {
-            showContactSelectionDialog(contacts, this::showCallConfirmation);
+            showContactSelectionDialog(contacts, contact -> 
+                    showCallConfirmation(contact, contact.phoneNumber));
         }
     }
     
