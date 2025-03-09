@@ -13,6 +13,10 @@ import android.speech.tts.TextToSpeech;
 import android.speech.tts.TextToSpeech.OnInitListener;
 import android.speech.tts.UtteranceProgressListener;
 import android.view.View;
+import android.view.animation.AccelerateDecelerateInterpolator;
+import android.view.animation.Animator;
+import android.view.animation.AnimatorInflater;
+import android.view.animation.ObjectAnimator;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -228,13 +232,35 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 3000L);
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
-
+        
+        // Дополнительные настройки для улучшения распознавания
+        intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5); // Получаем больше вариантов распознавания
+        intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true); // Предпочитаем оффлайн распознавание
+        intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+        
         try {
             speechRecognizer.startListening(intent);
             isListening = true;
             isProcessingSpeech = false;
             lastVoiceTime = System.currentTimeMillis();
             binding.voiceButton.setImageResource(R.drawable.ic_stop);
+            
+            // Показываем и анимируем индикаторы
+            binding.voiceIndicatorsContainer.setVisibility(View.VISIBLE);
+            binding.voiceWaveIndicator.setVisibility(View.VISIBLE);
+            
+            // Запускаем анимацию пульсации для кнопки
+            ObjectAnimator pulseAnimator = (ObjectAnimator) AnimatorInflater.loadAnimator(this, R.anim.pulse);
+            pulseAnimator.setTarget(binding.voiceButton);
+            pulseAnimator.start();
+            
+            // Запускаем анимацию волны для индикатора
+            ObjectAnimator waveAnimator = (ObjectAnimator) AnimatorInflater.loadAnimator(this, R.anim.wave);
+            waveAnimator.setTarget(binding.voiceWaveIndicator);
+            waveAnimator.start();
+            
+            // Анимируем индикаторы звука
+            animateSoundWaves();
         } catch (Exception e) {
             showError("Не удалось запустить распознавание речи");
         }
@@ -248,6 +274,57 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         isListening = false;
         isProcessingSpeech = false;
         binding.voiceButton.setImageResource(R.drawable.ic_mic);
+        
+        // Скрываем индикаторы с анимацией
+        binding.voiceIndicatorsContainer.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction(() -> {
+                binding.voiceIndicatorsContainer.setVisibility(View.GONE);
+                binding.voiceIndicatorsContainer.setAlpha(1f);
+            });
+            
+        binding.voiceWaveIndicator.animate()
+            .alpha(0f)
+            .setDuration(200)
+            .withEndAction(() -> {
+                binding.voiceWaveIndicator.setVisibility(View.GONE);
+                binding.voiceWaveIndicator.setAlpha(1f);
+            });
+        
+        // Останавливаем все анимации
+        binding.voiceButton.clearAnimation();
+        binding.voiceWaveIndicator.clearAnimation();
+        binding.soundWave1.clearAnimation();
+        binding.soundWave2.clearAnimation();
+        binding.soundWave3.clearAnimation();
+    }
+
+    private void animateSoundWaves() {
+        // Анимация для первой волны
+        ObjectAnimator wave1 = ObjectAnimator.ofFloat(binding.soundWave1, "scaleY", 0.3f, 1.0f);
+        wave1.setDuration(600);
+        wave1.setRepeatMode(ObjectAnimator.REVERSE);
+        wave1.setRepeatCount(ObjectAnimator.INFINITE);
+        wave1.setInterpolator(new AccelerateDecelerateInterpolator());
+        
+        // Анимация для второй волны
+        ObjectAnimator wave2 = ObjectAnimator.ofFloat(binding.soundWave2, "scaleY", 0.3f, 1.0f);
+        wave2.setDuration(800);
+        wave2.setRepeatMode(ObjectAnimator.REVERSE);
+        wave2.setRepeatCount(ObjectAnimator.INFINITE);
+        wave2.setInterpolator(new AccelerateDecelerateInterpolator());
+        
+        // Анимация для третьей волны
+        ObjectAnimator wave3 = ObjectAnimator.ofFloat(binding.soundWave3, "scaleY", 0.3f, 1.0f);
+        wave3.setDuration(400);
+        wave3.setRepeatMode(ObjectAnimator.REVERSE);
+        wave3.setRepeatCount(ObjectAnimator.INFINITE);
+        wave3.setInterpolator(new AccelerateDecelerateInterpolator());
+        
+        wave1.start();
+        wave2.start();
+        wave3.start();
     }
 
     private void speakText(String text) {
@@ -355,6 +432,12 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         if (rmsdB > 1.0f) { // Есть звук
             isProcessingSpeech = true;
             lastVoiceTime = System.currentTimeMillis();
+            
+            // Обновляем высоту волн в зависимости от громкости
+            float scale = Math.min(rmsdB / 10f, 1.0f);
+            binding.soundWave1.setScaleY(0.3f + scale * 0.7f);
+            binding.soundWave2.setScaleY(0.3f + scale * 0.7f);
+            binding.soundWave3.setScaleY(0.3f + scale * 0.7f);
         } else { // Тишина
             isProcessingSpeech = false;
             binding.voiceButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
