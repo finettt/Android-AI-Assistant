@@ -52,7 +52,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     private TextToSpeech textToSpeech;
     private boolean isListening = false;
     private boolean isSpeaking = false;
-    private static final String MODEL_ID = "anthropic/claude-3-opus";
+    private static final String MODEL_ID = "gryphe/mythomax-l2-13b";
     private String apiKey;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private static final long SPEECH_TIMEOUT_MILLIS = 1500; // 1.5 секунды тишины для завершения
@@ -200,6 +200,19 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             
             // Инициализируем CommandProcessor после успешной инициализации TextToSpeech
             commandProcessor = new CommandProcessor(this, textToSpeech);
+            
+            // Устанавливаем специальный промпт для голосового помощника
+            SystemPrompt assistantPrompt = new SystemPrompt(
+                "Ты - Robo, дружелюбный голосовой помощник. " +
+                "Отвечай кратко и по делу, используя разговорный стиль. " +
+                "Старайся давать ответы не длиннее 2-3 предложений. " +
+                "Используй простые слова и избегай сложных терминов. " +
+                "Если не знаешь ответа, так и скажи. " +
+                "Не используй смайлики и эмодзи. " +
+                "Всегда отвечай на русском языке.",
+                "Голосовой помощник Robo"
+            );
+            promptManager.setActivePrompt(assistantPrompt);
         } else {
             showError("Ошибка инициализации синтеза речи");
         }

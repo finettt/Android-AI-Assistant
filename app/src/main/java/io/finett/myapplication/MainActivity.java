@@ -67,10 +67,14 @@ public class MainActivity extends AppCompatActivity implements ChatsAdapter.OnCh
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private List<AIModel> availableModels = Arrays.asList(
-        new AIModel("mistralai/mistral-7b-instruct", "Mistral 7B", "Быстрая и эффективная модель"),
-        new AIModel("anthropic/claude-2", "Claude 2", "Мощная модель с широким контекстом"),
-        new AIModel("google/gemma-7b-it", "Gemma 7B", "Новая модель от Google"),
-        new AIModel("meta-llama/llama-2-70b-chat", "Llama 2 70B", "Большая модель с высокой точностью")
+        new AIModel("gryphe/mythomax-l2-13b", "MythoMax-L2", "Мощная модель для голосового помощника"),
+        new AIModel("anthropic/claude-3-opus", "Claude 3 Opus", "Самая мощная модель Claude"),
+        new AIModel("anthropic/claude-3-sonnet", "Claude 3 Sonnet", "Быстрая и эффективная модель Claude"),
+        new AIModel("anthropic/claude-3-haiku", "Claude 3 Haiku", "Компактная модель Claude"),
+        new AIModel("mistralai/mixtral-8x7b", "Mixtral 8x7B", "Мощная открытая модель"),
+        new AIModel("mistralai/mistral-medium", "Mistral Medium", "Сбалансированная модель"),
+        new AIModel("meta-llama/llama-2-70b-chat", "Llama 2 70B", "Большая модель с высокой точностью"),
+        new AIModel("google/gemma-7b-it", "Gemma 7B", "Новая модель от Google")
     );
     private List<Chat> chats = new ArrayList<>();
 
