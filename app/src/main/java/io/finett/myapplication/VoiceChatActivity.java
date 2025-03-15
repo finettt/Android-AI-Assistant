@@ -96,6 +96,14 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             }
             return false;
         });
+
+        commandProcessor = new CommandProcessor(this, textToSpeech, result -> {
+            ChatMessage botMessage = new ChatMessage(result, false);
+            runOnUiThread(() -> {
+                chatAdapter.addMessage(botMessage);
+                binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+            });
+        });
     }
 
     private void checkPermissionAndInitRecognizer() {
@@ -199,9 +207,6 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
                     runOnUiThread(() -> startListening());
                 }
             });
-            
-            // Инициализируем CommandProcessor после успешной инициализации TextToSpeech
-            commandProcessor = new CommandProcessor(this, textToSpeech);
             
             // Устанавливаем специальный промпт для голосового помощника
             SystemPrompt assistantPrompt = new SystemPrompt(
@@ -572,5 +577,11 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     @Override
     public void onDeleteMessage(ChatMessage message, int position) {
         // В голосовом чате удаление не требуется
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        commandProcessor.handleActivityResult(requestCode, resultCode, data);
     }
 } 
