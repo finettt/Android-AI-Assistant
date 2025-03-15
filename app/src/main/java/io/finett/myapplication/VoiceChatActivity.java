@@ -33,6 +33,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import io.finett.myapplication.adapter.ChatAdapter;
+import io.finett.myapplication.adapter.VoiceChatAdapter;
 import io.finett.myapplication.api.ApiClient;
 import io.finett.myapplication.api.OpenRouterApi;
 import io.finett.myapplication.databinding.ActivityVoiceChatBinding;
@@ -46,9 +47,9 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 public class VoiceChatActivity extends AppCompatActivity implements RecognitionListener, 
-        ChatAdapter.OnAttachmentClickListener, ChatAdapter.OnMessageActionListener, TextToSpeech.OnInitListener {
+        TextToSpeech.OnInitListener {
     private ActivityVoiceChatBinding binding;
-    private ChatAdapter chatAdapter;
+    private VoiceChatAdapter chatAdapter;
     private OpenRouterApi openRouterApi;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -140,7 +141,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     }
 
     private void setupRecyclerView() {
-        chatAdapter = new ChatAdapter(this, this);
+        chatAdapter = new VoiceChatAdapter(this);
         binding.chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         binding.chatRecyclerView.setAdapter(chatAdapter);
     }
@@ -466,20 +467,6 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     }
 
     @Override
-    public void onAttachmentClick(ChatMessage message) {
-        if (message.hasAttachment()) {
-            Intent intent = new Intent(Intent.ACTION_VIEW);
-            intent.setData(Uri.parse(message.getAttachmentUri()));
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            try {
-                startActivity(intent);
-            } catch (Exception e) {
-                showError("Не удалось открыть файл");
-            }
-        }
-    }
-
-    @Override
     protected void onPause() {
         super.onPause();
         binding.voiceButton.removeCallbacks(speechTimeoutRunnable);
@@ -567,16 +554,6 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
 
         builder.setNegativeButton("Отмена", null);
         builder.show();
-    }
-
-    @Override
-    public void onEditMessage(ChatMessage message, int position) {
-        // В голосовом чате редактирование не требуется
-    }
-
-    @Override
-    public void onDeleteMessage(ChatMessage message, int position) {
-        // В голосовом чате удаление не требуется
     }
 
     @Override

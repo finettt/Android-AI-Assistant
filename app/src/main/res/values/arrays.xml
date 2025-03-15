@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="text_size_entries">
+        <item>Очень маленький</item>
+        <item>Маленький</item>
+        <item>Нормальный</item>
+        <item>Большой</item>
+        <item>Очень большой</item>
+    </string-array>
+
+    <string-array name="text_size_values">
+        <item>very_small</item>
+        <item>small</item>
+        <item>normal</item>
+        <item>large</item>
+        <item>very_large</item>
+    </string-array>
+</resources> 

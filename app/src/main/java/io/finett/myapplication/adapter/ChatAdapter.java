@@ -1,5 +1,6 @@
 package io.finett.myapplication.adapter;
 
+import android.content.Context;
 import android.net.Uri;
 import android.view.Gravity;
 import android.view.LayoutInflater;
@@ -19,33 +20,29 @@ import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.finett.myapplication.MainActivity;
 import io.finett.myapplication.R;
 import io.finett.myapplication.model.ChatMessage;
+import io.finett.myapplication.util.AccessibilityManager;
 
 public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHolder> {
-    private List<ChatMessage> messages = new ArrayList<>();
-    private OnAttachmentClickListener attachmentClickListener;
-    private OnMessageActionListener messageActionListener;
+    private final List<ChatMessage> messages = new ArrayList<>();
+    private final Context context;
+    private final OnAttachmentClickListener attachmentClickListener;
+    private final OnMessageActionListener messageActionListener;
+    private final AccessibilityManager accessibilityManager;
 
-    public interface OnAttachmentClickListener {
-        void onAttachmentClick(ChatMessage message);
-    }
-
-    public interface OnMessageActionListener {
-        void onEditMessage(ChatMessage message, int position);
-        void onDeleteMessage(ChatMessage message, int position);
-    }
-
-    public ChatAdapter(OnAttachmentClickListener attachmentListener, OnMessageActionListener actionListener) {
-        this.attachmentClickListener = attachmentListener;
-        this.messageActionListener = actionListener;
+    public ChatAdapter(Context context, OnAttachmentClickListener attachmentClickListener) {
+        this.context = context;
+        this.attachmentClickListener = attachmentClickListener;
+        this.messageActionListener = (OnMessageActionListener) context;
+        this.accessibilityManager = new AccessibilityManager(context, null);
     }
 
     @NonNull
     @Override
     public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(parent.getContext())
-                .inflate(R.layout.item_message, parent, false);
+        View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
         return new MessageViewHolder(view);
     }
 
@@ -53,94 +50,55 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
     public void onBindViewHolder(@NonNull MessageViewHolder holder, int position) {
         ChatMessage message = messages.get(position);
         
-        // Настраиваем стиль сообщения
-        ViewGroup.LayoutParams containerParams = holder.messageContainer.getLayoutParams();
-        if (message.isUser()) {
-            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_user);
-            holder.messageText.setTextColor(holder.itemView.getContext().getColor(R.color.message_user_text));
-            containerParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-            ((LinearLayout.LayoutParams) holder.messageContainer.getLayoutParams())
-                .gravity = Gravity.END;
-        } else {
-            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_ai);
-            holder.messageText.setTextColor(holder.itemView.getContext().getColor(R.color.message_ai_text));
-            containerParams.width = ViewGroup.LayoutParams.WRAP_CONTENT;
-            ((LinearLayout.LayoutParams) holder.messageContainer.getLayoutParams())
-                .gravity = Gravity.START;
-        }
-        holder.messageContainer.setLayoutParams(containerParams);
-
-        // Показываем текст сообщения, если он есть
-        if (!message.getContent().isEmpty()) {
-            holder.messageText.setVisibility(View.VISIBLE);
-            holder.messageText.setText(message.getContent());
-            holder.editedMark.setVisibility(message.isEdited() ? View.VISIBLE : View.GONE);
-        } else {
-            holder.messageText.setVisibility(View.GONE);
-            holder.editedMark.setVisibility(View.GONE);
+        // Применяем настройки доступности к тексту
+        accessibilityManager.applyTextSize(holder.messageText);
+        if (accessibilityManager.isHighContrastEnabled()) {
+            holder.messageText.setBackgroundColor(0xFF000000);
+            holder.messageText.setTextColor(0xFFFFFFFF);
         }
 
-        // Настраиваем контекстное меню для сообщений пользователя
-        if (message.isUser()) {
-            holder.messageContainer.setOnLongClickListener(v -> {
-                showMessageContextMenu(v, message, holder.getAdapterPosition());
-                return true;
+        holder.messageText.setText(message.getContent());
+        
+        // Если есть вложение
+        if (message.hasAttachment()) {
+            holder.attachmentImage.setVisibility(View.VISIBLE);
+            if (message.getAttachmentType() == ChatMessage.AttachmentType.IMAGE) {
+                Glide.with(context)
+                        .load(message.getAttachmentUri())
+                        .into(holder.attachmentImage);
+            } else {
+                holder.attachmentImage.setImageResource(R.drawable.ic_file);
+            }
+            holder.attachmentImage.setOnClickListener(v -> {
+                if (attachmentClickListener != null) {
+                    attachmentClickListener.onAttachmentClick(message);
+                }
             });
         } else {
-            holder.messageContainer.setOnLongClickListener(null);
+            holder.attachmentImage.setVisibility(View.GONE);
         }
 
-        // Обрабатываем вложения
-        if (message.hasAttachment()) {
-            switch (message.getAttachmentType()) {
-                case IMAGE:
-                    holder.attachedImage.setVisibility(View.VISIBLE);
-                    holder.fileAttachmentLayout.setVisibility(View.GONE);
-                    holder.imageCaption.setVisibility(
-                            message.getContent().isEmpty() ? View.GONE : View.VISIBLE);
-                    
-                    if (!message.getContent().isEmpty()) {
-                        holder.imageCaption.setText(message.getContent());
-                    }
-                    
-                    Glide.with(holder.attachedImage)
-                            .load(Uri.parse(message.getAttachmentUri()))
-                            .into(holder.attachedImage);
-                    
-                    holder.attachedImage.setOnClickListener(v -> {
-                        if (attachmentClickListener != null) {
-                            attachmentClickListener.onAttachmentClick(message);
-                        }
-                    });
-                    break;
-                    
-                case FILE:
-                    holder.attachedImage.setVisibility(View.GONE);
-                    holder.imageCaption.setVisibility(View.GONE);
-                    holder.fileAttachmentLayout.setVisibility(View.VISIBLE);
-                    String fileName = new File(Uri.parse(message.getAttachmentUri()).getPath()).getName();
-                    holder.fileNameText.setText(fileName);
-                    holder.fileAttachmentLayout.setOnClickListener(v -> {
-                        if (attachmentClickListener != null) {
-                            attachmentClickListener.onAttachmentClick(message);
-                        }
-                    });
-                    break;
-                    
-                default:
-                    holder.attachedImage.setVisibility(View.GONE);
-                    holder.imageCaption.setVisibility(View.GONE);
-                    holder.fileAttachmentLayout.setVisibility(View.GONE);
+        // Добавляем обработку долгого нажатия для редактирования/удаления
+        holder.itemView.setOnLongClickListener(v -> {
+            if (messageActionListener != null && message.isUser()) {
+                showMessageActions(message, position, holder.itemView);
             }
-        } else {
-            holder.attachedImage.setVisibility(View.GONE);
-            holder.imageCaption.setVisibility(View.GONE);
-            holder.fileAttachmentLayout.setVisibility(View.GONE);
+            return true;
+        });
+
+        // Озвучиваем сообщение, если включена голосовая обратная связь
+        if (!message.isUser() && accessibilityManager.isTtsFeedbackEnabled()) {
+            accessibilityManager.speak(message.getContent());
+        }
+
+        // Вибрируем при новом сообщении, если включена вибрация
+        if (position == messages.size() - 1 && accessibilityManager.isVibrationFeedbackEnabled()) {
+            accessibilityManager.vibrate();
         }
     }
 
-    private void showMessageContextMenu(View view, ChatMessage message, int position) {
-        PopupMenu popup = new PopupMenu(view.getContext(), view);
+    private void showMessageActions(ChatMessage message, int position, View anchor) {
+        PopupMenu popup = new PopupMenu(context, anchor);
         popup.inflate(R.menu.menu_message_context);
         
         popup.setOnMenuItemClickListener(item -> {
@@ -162,18 +120,17 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         popup.show();
     }
 
-    public void updateMessage(int position) {
-        notifyItemChanged(position);
-    }
-
-    public void removeMessage(int position) {
-        messages.remove(position);
-        notifyItemRemoved(position);
-    }
-
     @Override
     public int getItemCount() {
         return messages.size();
+    }
+
+    public void setMessages(List<ChatMessage> messages) {
+        this.messages.clear();
+        if (messages != null) {
+            this.messages.addAll(messages);
+        }
+        notifyDataSetChanged();
     }
 
     public void addMessage(ChatMessage message) {
@@ -181,9 +138,13 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         notifyItemInserted(messages.size() - 1);
     }
 
-    public void setMessages(List<ChatMessage> messages) {
-        this.messages = new ArrayList<>(messages);
-        notifyDataSetChanged();
+    public void updateMessage(int position) {
+        notifyItemChanged(position);
+    }
+
+    public void removeMessage(int position) {
+        messages.remove(position);
+        notifyItemRemoved(position);
     }
 
     public void clear() {
@@ -195,7 +156,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         LinearLayout messageContainer;
         TextView messageText;
         TextView editedMark;
-        ImageView attachedImage;
+        ImageView attachmentImage;
         TextView imageCaption;
         LinearLayout fileAttachmentLayout;
         TextView fileNameText;
@@ -203,12 +164,21 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
         MessageViewHolder(View itemView) {
             super(itemView);
             messageContainer = itemView.findViewById(R.id.messageContainer);
-            messageText = itemView.findViewById(R.id.messageText);
+            messageText = itemView.findViewById(R.id.message_text);
             editedMark = itemView.findViewById(R.id.editedMark);
-            attachedImage = itemView.findViewById(R.id.attachedImage);
+            attachmentImage = itemView.findViewById(R.id.attachment_image);
             imageCaption = itemView.findViewById(R.id.imageCaption);
             fileAttachmentLayout = itemView.findViewById(R.id.fileAttachmentLayout);
             fileNameText = itemView.findViewById(R.id.fileNameText);
         }
+    }
+
+    public interface OnAttachmentClickListener {
+        void onAttachmentClick(ChatMessage message);
+    }
+
+    public interface OnMessageActionListener {
+        void onEditMessage(ChatMessage message, int position);
+        void onDeleteMessage(ChatMessage message, int position);
     }
 } 

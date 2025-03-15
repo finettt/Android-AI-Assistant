@@ -1,7 +1,10 @@
 package io.finett.myapplication;
 
 import android.Manifest;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -14,6 +17,7 @@ import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
@@ -53,6 +57,7 @@ import io.finett.myapplication.model.ChatMessage;
 import io.finett.myapplication.util.ImageUtil;
 import io.finett.myapplication.util.StorageUtil;
 import io.finett.myapplication.util.UserManager;
+import io.finett.myapplication.util.AccessibilityManager;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -83,6 +88,8 @@ public class MainActivity extends AppCompatActivity implements
     );
     private List<Chat> chats = new ArrayList<>();
     private UserManager userManager;
+    private AccessibilityManager accessibilityManager;
+    private BroadcastReceiver settingsReceiver;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -107,6 +114,7 @@ public class MainActivity extends AppCompatActivity implements
         setContentView(binding.getRoot());
 
         userManager = new UserManager(this);
+        accessibilityManager = new AccessibilityManager(this, null); // TTS будет инициализирован позже
         
         setupToolbar();
         setupRecyclerViews();
@@ -114,6 +122,7 @@ public class MainActivity extends AppCompatActivity implements
         setupApi();
         setupNewChatButton();
         setupAttachButton();
+        setupSettingsReceiver();
         
         // Загружаем чаты и восстанавливаем последний активный
         loadSavedChats();
@@ -130,6 +139,9 @@ public class MainActivity extends AppCompatActivity implements
         if (!userManager.isRegistered()) {
             showRegistrationDialog();
         }
+
+        // Применяем текущие настройки доступности
+        applyAccessibilitySettings();
     }
 
     private void loadSavedChats() {
@@ -185,6 +197,11 @@ public class MainActivity extends AppCompatActivity implements
         binding.newChatButton.setOnClickListener(v -> showNewChatDialog());
         binding.voiceChatButton.setOnClickListener(v -> {
             Intent intent = new Intent(this, VoiceChatActivity.class);
+            startActivity(intent);
+            binding.drawerLayout.close();
+        });
+        binding.accessibilitySettingsButton.setOnClickListener(v -> {
+            Intent intent = new Intent(this, AccessibilitySettingsActivity.class);
             startActivity(intent);
             binding.drawerLayout.close();
         });
@@ -711,5 +728,59 @@ public class MainActivity extends AppCompatActivity implements
         });
 
         dialog.show();
+    }
+
+    private void setupSettingsReceiver() {
+        settingsReceiver = new BroadcastReceiver() {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                if ("io.finett.myapplication.SETTINGS_UPDATED".equals(intent.getAction())) {
+                    applyAccessibilitySettings();
+                }
+            }
+        };
+        registerReceiver(
+            settingsReceiver, 
+            new IntentFilter("io.finett.myapplication.SETTINGS_UPDATED"),
+            Context.RECEIVER_NOT_EXPORTED
+        );
+    }
+
+    private void applyAccessibilitySettings() {
+        // Применяем размер текста к полю ввода
+        accessibilityManager.applyTextSize(binding.messageInput);
+        
+        // Применяем размер текста к заголовку
+        if (getSupportActionBar() != null && getSupportActionBar().getCustomView() != null) {
+            View customView = getSupportActionBar().getCustomView();
+            TextView titleView = customView.findViewById(android.R.id.title);
+            if (titleView != null) {
+                accessibilityManager.applyTextSize(titleView);
+            }
+        }
+
+        // Применяем контраст к основным элементам
+        if (accessibilityManager.isHighContrastEnabled()) {
+            binding.messageInput.setBackgroundColor(0xFF000000);
+            binding.messageInput.setTextColor(0xFFFFFFFF);
+        }
+
+        // Обновляем сообщения в чате с новыми настройками
+        if (chatAdapter != null) {
+            chatAdapter.notifyDataSetChanged();
+        }
+        
+        // Обновляем список чатов с новыми настройками
+        if (chatsAdapter != null) {
+            chatsAdapter.notifyDataSetChanged();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (settingsReceiver != null) {
+            unregisterReceiver(settingsReceiver);
+        }
     }
 }

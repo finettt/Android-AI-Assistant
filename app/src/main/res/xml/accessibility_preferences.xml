@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="Текст"
+        app:iconSpaceReserved="false">
+
+        <ListPreference
+            android:defaultValue="normal"
+            android:entries="@array/text_size_entries"
+            android:entryValues="@array/text_size_values"
+            android:key="text_size"
+            android:title="Размер текста"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Визуальные настройки"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="high_contrast"
+            android:summary="Увеличивает контрастность текста и элементов интерфейса"
+            android:title="Высокая контрастность"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Обратная связь"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="tts_feedback"
+            android:summary="Озвучивать текстовые сообщения"
+            android:title="Голосовая обратная связь"
+            app:iconSpaceReserved="false" />
+
+        <SeekBarPreference
+            android:defaultValue="1"
+            android:key="speech_rate"
+            android:max="2"
+            android:title="Скорость речи"
+            app:iconSpaceReserved="false"
+            app:min="0"
+            app:seekBarIncrement="1"
+            app:showSeekBarValue="true" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="vibration_feedback"
+            android:summary="Вибрировать при важных событиях"
+            android:title="Вибрационная обратная связь"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Камера"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="auto_capture"
+            android:summary="Автоматически делать снимок при обнаружении объекта"
+            android:title="Автоматическая съемка"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+</PreferenceScreen> 

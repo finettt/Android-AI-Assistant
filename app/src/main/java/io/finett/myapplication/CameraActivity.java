@@ -7,6 +7,7 @@ import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
+import android.view.View;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
@@ -44,6 +45,8 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
     private OpenRouterApi openRouterApi;
     private String apiKey;
     private static final String MODEL_ID = "google/gemini-2.0-flash-001";
+    private com.google.android.material.progressindicator.CircularProgressIndicator progressIndicator;
+    private FloatingActionButton captureButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -55,7 +58,8 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
         openRouterApi = ApiClient.getClient().create(OpenRouterApi.class);
         textToSpeech = new TextToSpeech(this, this);
 
-        FloatingActionButton captureButton = findViewById(R.id.captureButton);
+        progressIndicator = findViewById(R.id.progressIndicator);
+        captureButton = findViewById(R.id.captureButton);
         captureButton.setOnClickListener(v -> captureImage());
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
@@ -86,6 +90,17 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
 
+                // Показываем индикатор прогресса
+                progressIndicator.setVisibility(View.VISIBLE);
+                captureButton.setEnabled(false);
+
+                // Запускаем автоматическую съемку через 1 секунду
+                new android.os.Handler().postDelayed(() -> {
+                    if (!isFinishing()) {
+                        captureImage();
+                    }
+                }, 1000); // 1000 миллисекунд = 1 секунда
+
             } catch (Exception e) {
                 Toast.makeText(this, "Ошибка инициализации камеры", 
                         Toast.LENGTH_SHORT).show();
@@ -109,14 +124,23 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                             analyzeImage(base64Image);
                         } catch (IOException e) {
                             showError("Ошибка при обработке изображения");
+                            hideProgress();
                         }
                     }
 
                     @Override
                     public void onError(@NonNull ImageCaptureException exception) {
                         showError("Ошибка при съемке фото");
+                        hideProgress();
                     }
                 });
+    }
+
+    private void hideProgress() {
+        runOnUiThread(() -> {
+            progressIndicator.setVisibility(View.GONE);
+            captureButton.setEnabled(true);
+        });
     }
 
     private String convertImageToBase64(File file) throws IOException {
@@ -189,11 +213,13 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                         speakResult(content);
                     } catch (Exception e) {
                         showError("Ошибка при обработке ответа");
+                        hideProgress();
                         setResult(RESULT_CANCELED);
                         finish();
                     }
                 } else {
                     showError("Ошибка при получении ответа");
+                    hideProgress();
                     setResult(RESULT_CANCELED);
                     finish();
                 }
@@ -202,6 +228,7 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
                 showError("Ошибка сети");
+                hideProgress();
                 setResult(RESULT_CANCELED);
                 finish();
             }

@@ -13,6 +13,7 @@
     <uses-permission android:name="android.permission.SEND_SMS" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <queries>
@@ -51,6 +52,12 @@
         <activity
             android:name=".CameraActivity"
             android:exported="false" />
+
+        <activity
+            android:name=".AccessibilitySettingsActivity"
+            android:exported="false"
+            android:label="Настройки доступности"
+            android:parentActivityName=".MainActivity" />
 
         <provider
             android:name="androidx.core.content.FileProvider"
