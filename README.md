@@ -1,75 +1,75 @@
 # Robo - Your AI Assistant
 
-Robo - это интеллектуальный голосовой ассистент для Android с расширенными возможностями камеры и функциями доступности. Приложение предоставляет удобный интерфейс для голосового управления устройством, совершения звонков, отправки сообщений и анализа изображений.
+An intelligent voice assistant for Android with advanced camera capabilities and accessibility features. The application provides a convenient interface for voice control of your device, making calls, sending messages, and analyzing images.
 
-## Возможности
+## Features
 
-### 🎤 Голосовое управление
-- Распознавание голосовых команд на русском языке
-- Естественные диалоги с ассистентом
-- Автоматическая остановка записи при тишине
-- Голосовая обратная связь
+### 🎤 Voice Control
+- Voice command recognition in Russian
+- Natural dialogues with the assistant
+- Automatic silence detection
+- Voice feedback
 
-### 📞 Телефония и сообщения
-- Голосовой набор номера
-- Поиск контактов по имени
-- Отправка SMS сообщений
-- Подтверждение действий для безопасности
+### 📞 Telephony and Messages
+- Voice dialing
+- Contact search by name
+- SMS messaging
+- Safety confirmation dialogs
 
-### 🌐 Веб-браузер
-- Встроенный просмотр веб-страниц через Chrome Custom Tabs
-- Поддержка прямых URL и поисковых запросов
-- Автоматическое форматирование ссылок
-- Fallback на браузер по умолчанию
+### 🌐 Web Browser
+- Built-in web page viewing via Chrome Custom Tabs
+- Support for direct URLs and search queries
+- Automatic link formatting
+- Fallback to default browser
 
-### 📸 Работа с камерой
-- Анализ объектов в реальном времени
-- Автоматическая съемка фото
-- Голосовое описание распознанных объектов
-- Настраиваемые режимы съемки
+### 📸 Camera Features
+- Real-time object analysis
+- Automatic photo capture
+- Voice description of recognized objects
+- Customizable shooting modes
 
-### ♿ Доступность
-- Высококонтрастный режим
-- Настраиваемый размер текста
-- Голосовая и вибрационная обратная связь
-- Специальная структура для скринридеров
+### ♿ Accessibility
+- High contrast mode
+- Adjustable text size
+- Voice and vibration feedback
+- Screen reader optimized structure
 
-## Установка
+## Installation
 
-### Требования
-- Android 7.0 (API 24) или выше
-- Минимум 100 МБ свободного места
-- Доступ к интернету
-- Разрешения для микрофона, камеры, контактов
+### Requirements
+- Android 7.0 (API 24) or higher
+- Minimum 100 MB free space
+- Internet access
+- Microphone, camera, and contacts permissions
 
-### Через Android Studio
-1. Клонируйте репозиторий:
+### Via Android Studio
+1. Clone the repository:
 ```bash
 git clone https://github.com/finettt/robo-assistant.git
 ```
 
-2. Откройте проект в Android Studio
+2. Open the project in Android Studio
 
-3. Синхронизируйте Gradle файлы
+3. Sync Gradle files
 
-4. Запустите на устройстве или эмуляторе:
+4. Run on device or emulator:
    - Run > Run 'app'
-   - Или используйте сочетание Shift + F10
+   - Or use Shift + F10
 
-### Через командную строку
+### Via Command Line
 ```bash
-# Сборка отладочной версии
+# Build debug version
 ./gradlew assembleDebug
 
-# Установка на подключенное устройство
+# Install on connected device
 ./gradlew installDebug
 ```
 
-## Использование
+## Usage
 
-### Основные голосовые команды
+### Basic Voice Commands
 
-#### Звонки
+#### Calls
 - "Позвони [имя контакта]"
 - "Набери [номер телефона]"
 - "Вызови [имя контакта]"
@@ -78,19 +78,19 @@ git clone https://github.com/finettt/robo-assistant.git
 - "Отправь SMS [имя контакта] с текстом [сообщение]"
 - "Напиши сообщение [имя контакта] [текст]"
 
-#### Веб
-- "Открой [url]" - прямой переход по ссылке
-- "Найди [запрос]" - поиск в Google
-- "Поиск [запрос]" - поиск в Google
+#### Web
+- "Открой [url]" - direct URL navigation
+- "Найди [запрос]" - Google search
+- "Поиск [запрос]" - Google search
 
-#### Камера
+#### Camera
 - "Включи камеру"
 - "Что сейчас видно на камере?"
 - "Опиши что видишь"
 
-## Разработка
+## Development
 
-### Структура проекта
+### Project Structure
 ```
 app/
 ├── src/
@@ -110,34 +110,34 @@ app/
 └── build.gradle
 ```
 
-### Технологии
-- Java для основной разработки
-- Jetpack компоненты (ViewModel, LiveData)
-- CameraX для работы с камерой
-- Retrofit для сетевых запросов
-- Material Design компоненты
+### Technologies
+- Java for core development
+- Jetpack components (ViewModel, LiveData)
+- CameraX for camera operations
+- Retrofit for network requests
+- Material Design components
 
-### Очистка проекта
-Для глубокой очистки проекта используйте:
+### Project Cleanup
+For deep project cleanup, use:
 - Windows: `clean-project.bat`
 - Linux/macOS: `clean-project.sh`
 
-## Сотрудничество
+## Contributing
 
-1. Форкните репозиторий
-2. Создайте ветку для новой функциональности
-3. Внесите изменения
-4. Отправьте Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Submit a Pull Request
 
-## Лицензия
+## License
 
-MIT License. См. файл [LICENSE](LICENSE) для подробностей.
+MIT License. See [LICENSE](LICENSE) file for details.
 
-## Контакты
+## Contacts
 
 - Telegram: [@finet_f](https://t.me/finet_f)
 - GitHub: [github.com/finettt](https://github.com/finettt)
 
-## История изменений
+## Changelog
 
-Полный список изменений доступен в [DOCUMENTATION.md](DOCUMENTATION.md#история-изменений)
+Full changelog is available in [DOCUMENTATION.md](DOCUMENTATION.md#history-of-changes)
