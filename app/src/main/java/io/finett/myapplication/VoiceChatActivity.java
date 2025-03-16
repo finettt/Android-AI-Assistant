@@ -11,6 +11,7 @@ import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.animation.AccelerateDecelerateInterpolator;
 import android.animation.AnimatorInflater;
@@ -23,8 +24,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
 
 import com.google.android.material.textfield.TextInputEditText;
+import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.appbar.MaterialToolbar;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -42,12 +46,12 @@ import io.finett.myapplication.util.CommunicationManager;
 import io.finett.myapplication.util.PromptManager;
 import io.finett.myapplication.model.SystemPrompt;
 import io.finett.myapplication.util.CommandProcessor;
+import io.finett.myapplication.base.BaseAccessibilityActivity;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class VoiceChatActivity extends AppCompatActivity implements RecognitionListener, 
-        TextToSpeech.OnInitListener {
+public class VoiceChatActivity extends BaseAccessibilityActivity implements TextToSpeech.OnInitListener, RecognitionListener {
     private ActivityVoiceChatBinding binding;
     private VoiceChatAdapter chatAdapter;
     private OpenRouterApi openRouterApi;
@@ -72,25 +76,22 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     };
     private PromptManager promptManager;
     private CommandProcessor commandProcessor;
+    private RecyclerView recyclerView;
+    private FloatingActionButton micButton;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        binding = ActivityVoiceChatBinding.inflate(getLayoutInflater());
-        setContentView(binding.getRoot());
+        setContentView(R.layout.activity_voice_chat);
 
-        promptManager = new PromptManager(this);
-        apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
-                .getString(MainActivity.API_KEY_PREF, null);
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Голосовой чат");
+        }
 
-        setupToolbar();
-        setupRecyclerView();
-        setupVoiceButton();
-        setupApi();
-        checkPermissionAndInitRecognizer();
-        initTextToSpeech();
-        binding.toolbar.inflateMenu(R.menu.voice_chat_menu);
-        binding.toolbar.setOnMenuItemClickListener(item -> {
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.inflateMenu(R.menu.voice_chat_menu);
+        toolbar.setOnMenuItemClickListener(item -> {
             if (item.getItemId() == R.id.action_manage_prompts) {
                 showPromptManagementDialog();
                 return true;
@@ -98,11 +99,24 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             return false;
         });
 
+        promptManager = new PromptManager(this);
+        apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
+                .getString(MainActivity.API_KEY_PREF, null);
+
+        recyclerView = findViewById(R.id.voice_chat_recycler_view);
+        micButton = findViewById(R.id.voice_chat_mic_button);
+
+        setupRecyclerView();
+        setupMicButton();
+        setupApi();
+        checkPermissionAndInitRecognizer();
+        initTextToSpeech();
+
         commandProcessor = new CommandProcessor(this, textToSpeech, result -> {
             ChatMessage botMessage = new ChatMessage(result, false);
             runOnUiThread(() -> {
                 chatAdapter.addMessage(botMessage);
-                binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
             });
         });
     }
@@ -135,19 +149,14 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         }
     }
 
-    private void setupToolbar() {
-        setSupportActionBar(binding.toolbar);
-        binding.toolbar.setNavigationOnClickListener(v -> finish());
-    }
-
     private void setupRecyclerView() {
+        recyclerView.setLayoutManager(new LinearLayoutManager(this));
         chatAdapter = new VoiceChatAdapter(this);
-        binding.chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
-        binding.chatRecyclerView.setAdapter(chatAdapter);
+        recyclerView.setAdapter(chatAdapter);
     }
 
-    private void setupVoiceButton() {
-        binding.voiceButton.setOnClickListener(v -> {
+    private void setupMicButton() {
+        micButton.setOnClickListener(v -> {
             if (isSpeaking) {
                 if (textToSpeech != null) {
                     textToSpeech.stop();
@@ -242,10 +251,10 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             isListening = true;
             isProcessingSpeech = false;
             lastVoiceTime = System.currentTimeMillis();
-            binding.voiceButton.setImageResource(R.drawable.ic_stop);
+            micButton.setImageResource(R.drawable.ic_stop);
             
             // Запускаем таймер для проверки тишины
-            binding.voiceButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
+            micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
         } catch (Exception e) {
             showError("Не удалось запустить распознавание речи: " + e.getMessage());
             e.printStackTrace();
@@ -255,11 +264,11 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     private void stopListening() {
         if (!isListening) return;
         
-        binding.voiceButton.removeCallbacks(speechTimeoutRunnable);
+        micButton.removeCallbacks(speechTimeoutRunnable);
         speechRecognizer.stopListening();
         isListening = false;
         isProcessingSpeech = false;
-        binding.voiceButton.setImageResource(R.drawable.ic_mic);
+        micButton.setImageResource(R.drawable.ic_mic);
     }
 
     private void speakText(String text) {
@@ -273,7 +282,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     private void sendMessageToAPI(String message) {
         ChatMessage userMessage = new ChatMessage(message, true);
         chatAdapter.addMessage(userMessage);
-        binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", MODEL_ID);
@@ -325,7 +334,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
                         ChatMessage botMessage = new ChatMessage(content, false);
                         runOnUiThread(() -> {
                             chatAdapter.addMessage(botMessage);
-                            binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                            recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
                             speakText(content);
                         });
                     } catch (Exception e) {
@@ -372,8 +381,8 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
             lastVoiceTime = System.currentTimeMillis();
         } else { // Тишина
             isProcessingSpeech = false;
-            binding.voiceButton.removeCallbacks(speechTimeoutRunnable);
-            binding.voiceButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
+            micButton.removeCallbacks(speechTimeoutRunnable);
+            micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
         }
     }
 
@@ -427,7 +436,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
         
         final String errorMessage = message;
         runOnUiThread(() -> {
-            binding.voiceButton.removeCallbacks(speechTimeoutRunnable);
+            micButton.removeCallbacks(speechTimeoutRunnable);
             if (error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
                 Toast.makeText(VoiceChatActivity.this, errorMessage, Toast.LENGTH_SHORT).show();
             }
@@ -469,7 +478,7 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     @Override
     protected void onPause() {
         super.onPause();
-        binding.voiceButton.removeCallbacks(speechTimeoutRunnable);
+        micButton.removeCallbacks(speechTimeoutRunnable);
         stopListening();
         if (textToSpeech != null) {
             textToSpeech.stop();
@@ -560,5 +569,21 @@ public class VoiceChatActivity extends AppCompatActivity implements RecognitionL
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         commandProcessor.handleActivityResult(requestCode, resultCode, data);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            onBackPressed();
+            return true;
+        }
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onAccessibilitySettingsApplied() {
+        if (chatAdapter != null) {
+            chatAdapter.notifyDataSetChanged();
+        }
     }
 } 

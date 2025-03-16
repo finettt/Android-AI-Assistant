@@ -6,6 +6,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.speech.tts.TextToSpeech;
 import android.view.View;
 import android.widget.Toast;
@@ -22,6 +24,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.material.floatingactionbutton.FloatingActionButton;
+import com.google.android.material.progressindicator.CircularProgressIndicator;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -32,21 +36,26 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 import io.finett.myapplication.api.ApiClient;
 import io.finett.myapplication.api.OpenRouterApi;
+import io.finett.myapplication.base.BaseAccessibilityActivity;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class CameraActivity extends AppCompatActivity implements TextToSpeech.OnInitListener {
+public class CameraActivity extends BaseAccessibilityActivity implements TextToSpeech.OnInitListener {
     private ImageCapture imageCapture;
     private TextToSpeech textToSpeech;
     private OpenRouterApi openRouterApi;
     private String apiKey;
     private static final String MODEL_ID = "google/gemini-2.0-flash-001";
-    private com.google.android.material.progressindicator.CircularProgressIndicator progressIndicator;
+    private CircularProgressIndicator progressIndicator;
     private FloatingActionButton captureButton;
+    private PreviewView previewView;
+    private Handler handler;
+    private static final int CAPTURE_DELAY = 1000; // 1 секунда
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -57,9 +66,12 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                 .getString(MainActivity.API_KEY_PREF, null);
         openRouterApi = ApiClient.getClient().create(OpenRouterApi.class);
         textToSpeech = new TextToSpeech(this, this);
+        handler = new Handler(Looper.getMainLooper());
 
         progressIndicator = findViewById(R.id.progressIndicator);
         captureButton = findViewById(R.id.captureButton);
+        previewView = findViewById(R.id.previewView);
+        
         captureButton.setOnClickListener(v -> captureImage());
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) 
@@ -72,10 +84,15 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
     }
 
     private void startCamera() {
-        ProcessCameraProvider.getInstance(this).addListener(() -> {
+        ListenableFuture<ProcessCameraProvider> cameraProviderFuture = 
+                ProcessCameraProvider.getInstance(this);
+
+        cameraProviderFuture.addListener(() -> {
             try {
-                ProcessCameraProvider cameraProvider = ProcessCameraProvider.getInstance(this).get();
+                ProcessCameraProvider cameraProvider = cameraProviderFuture.get();
                 Preview preview = new Preview.Builder().build();
+                preview.setSurfaceProvider(previewView.getSurfaceProvider());
+
                 imageCapture = new ImageCapture.Builder()
                         .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
                         .build();
@@ -84,34 +101,36 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                         .requireLensFacing(CameraSelector.LENS_FACING_BACK)
                         .build();
 
-                PreviewView previewView = findViewById(R.id.preview);
-                preview.setSurfaceProvider(previewView.getSurfaceProvider());
-
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
 
-                // Показываем индикатор прогресса
-                progressIndicator.setVisibility(View.VISIBLE);
-                captureButton.setEnabled(false);
+                // Если включена автоматическая съемка
+                if (accessibilityManager.isAutoCaptureEnabled()) {
+                    progressIndicator.setVisibility(View.VISIBLE);
+                    handler.postDelayed(this::captureImage, CAPTURE_DELAY);
+                }
 
-                // Запускаем автоматическую съемку через 1 секунду
-                new android.os.Handler().postDelayed(() -> {
-                    if (!isFinishing()) {
-                        captureImage();
-                    }
-                }, 1000); // 1000 миллисекунд = 1 секунда
-
-            } catch (Exception e) {
-                Toast.makeText(this, "Ошибка инициализации камеры", 
-                        Toast.LENGTH_SHORT).show();
+            } catch (ExecutionException | InterruptedException e) {
+                e.printStackTrace();
             }
         }, ContextCompat.getMainExecutor(this));
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, 
+            @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == 100) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                startCamera();
+            }
+        }
     }
 
     private void captureImage() {
         if (imageCapture == null) return;
 
-        File photoFile = new File(getExternalFilesDir(null), "photo.jpg");
+        File photoFile = new File(getExternalCacheDir(), "photo.jpg");
         ImageCapture.OutputFileOptions outputOptions = 
                 new ImageCapture.OutputFileOptions.Builder(photoFile).build();
 
@@ -119,28 +138,26 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
                 new ImageCapture.OnImageSavedCallback() {
                     @Override
                     public void onImageSaved(@NonNull ImageCapture.OutputFileResults output) {
-                        try {
-                            String base64Image = convertImageToBase64(photoFile);
-                            analyzeImage(base64Image);
-                        } catch (IOException e) {
-                            showError("Ошибка при обработке изображения");
-                            hideProgress();
-                        }
+                        progressIndicator.setVisibility(View.GONE);
+                        analyzeImage(photoFile);
                     }
 
                     @Override
                     public void onError(@NonNull ImageCaptureException exception) {
-                        showError("Ошибка при съемке фото");
-                        hideProgress();
+                        progressIndicator.setVisibility(View.GONE);
+                        exception.printStackTrace();
                     }
                 });
     }
 
-    private void hideProgress() {
-        runOnUiThread(() -> {
-            progressIndicator.setVisibility(View.GONE);
-            captureButton.setEnabled(true);
-        });
+    private void analyzeImage(File imageFile) {
+        try {
+            String base64Image = convertImageToBase64(imageFile);
+            analyzeImage(base64Image);
+        } catch (IOException e) {
+            showError("Ошибка при обработке изображения");
+            hideProgress();
+        }
     }
 
     private String convertImageToBase64(File file) throws IOException {
@@ -257,22 +274,15 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
         }
     }
 
-    private void showError(String message) {
-        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
+    private void hideProgress() {
+        runOnUiThread(() -> {
+            progressIndicator.setVisibility(View.GONE);
+            captureButton.setEnabled(true);
+        });
     }
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
-            @NonNull int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == 100) {
-            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startCamera();
-            } else {
-                showError("Необходимо разрешение на использование камеры");
-                finish();
-            }
-        }
+    private void showError(String message) {
+        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
     }
 
     @Override
@@ -294,6 +304,9 @@ public class CameraActivity extends AppCompatActivity implements TextToSpeech.On
         if (textToSpeech != null) {
             textToSpeech.stop();
             textToSpeech.shutdown();
+        }
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
         }
     }
 } 

@@ -61,8 +61,9 @@ import io.finett.myapplication.util.AccessibilityManager;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import io.finett.myapplication.base.BaseAccessibilityActivity;
 
-public class MainActivity extends AppCompatActivity implements 
+public class MainActivity extends BaseAccessibilityActivity implements 
         ChatsAdapter.OnChatClickListener, 
         ChatAdapter.OnAttachmentClickListener,
         ChatAdapter.OnMessageActionListener {
@@ -746,31 +747,12 @@ public class MainActivity extends AppCompatActivity implements
         );
     }
 
-    private void applyAccessibilitySettings() {
-        // Применяем размер текста к полю ввода
-        accessibilityManager.applyTextSize(binding.messageInput);
-        
-        // Применяем размер текста к заголовку
-        if (getSupportActionBar() != null && getSupportActionBar().getCustomView() != null) {
-            View customView = getSupportActionBar().getCustomView();
-            TextView titleView = customView.findViewById(android.R.id.title);
-            if (titleView != null) {
-                accessibilityManager.applyTextSize(titleView);
-            }
-        }
-
-        // Применяем контраст к основным элементам
-        if (accessibilityManager.isHighContrastEnabled()) {
-            binding.messageInput.setBackgroundColor(0xFF000000);
-            binding.messageInput.setTextColor(0xFFFFFFFF);
-        }
-
-        // Обновляем сообщения в чате с новыми настройками
+    @Override
+    protected void onAccessibilitySettingsApplied() {
+        // Обновляем адаптеры после применения настроек
         if (chatAdapter != null) {
             chatAdapter.notifyDataSetChanged();
         }
-        
-        // Обновляем список чатов с новыми настройками
         if (chatsAdapter != null) {
             chatsAdapter.notifyDataSetChanged();
         }

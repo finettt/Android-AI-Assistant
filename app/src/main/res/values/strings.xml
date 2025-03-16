@@ -9,4 +9,7 @@
     <string name="action_cancel">Отмена</string>
     <string name="error_empty_name">Пожалуйста, введите ваше имя</string>
     <string name="welcome_message">Привет, %1$s! Я - Robo, ваш голосовой помощник.</string>
+    <string name="take_photo">Сделать фото</string>
+    <string name="start_voice_input">Начать голосовой ввод</string>
+    <string name="manage_prompts">Управление промптами</string>
 </resources>
