@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Override colors for dark theme -->
+    <color name="primary">@color/primary_dark_theme</color>
+    <color name="primary_dark">@color/primary_dark_dark_theme</color>
+    <color name="secondary">@color/secondary_dark_theme</color>
+    <color name="secondary_dark">@color/secondary_dark_dark_theme</color>
+    <color name="background">@color/background_dark_theme</color>
+    <color name="surface">@color/surface_dark_theme</color>
+    <color name="on_background">@color/on_background_dark_theme</color>
+    <color name="on_surface">@color/on_surface_dark_theme</color>
+    <color name="text_primary">@color/text_primary_dark_theme</color>
+    <color name="text_secondary">@color/text_secondary_dark_theme</color>
+    
+    <!-- Цвета для сообщений в темной теме -->
+    <color name="message_user_background">@color/message_user_background_dark_theme</color>
+    <color name="message_ai_background">@color/message_ai_background_dark_theme</color>
+    <color name="message_user_text">@color/message_user_text_dark_theme</color>
+    <color name="message_ai_text">@color/message_ai_text_dark_theme</color>
+</resources> 

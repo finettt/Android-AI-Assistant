@@ -6,7 +6,7 @@
         <!-- <item name="colorPrimary">@color/my_light_primary</item> -->
     </style>
 
-    <style name="Theme.MyApplication" parent="Theme.MaterialComponents.Light.DarkActionBar">
+    <style name="Theme.MyApplication" parent="Theme.MaterialComponents.Light.NoActionBar">
         <!-- Primary brand color -->
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_dark</item>
