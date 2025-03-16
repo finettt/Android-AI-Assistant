@@ -45,7 +45,7 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 ### Via Android Studio
 1. Clone the repository:
 ```bash
-git clone https://github.com/finettt/robo-assistant.git
+git clone https://github.com/finettt/Android-AI-Assistan.git
 ```
 
 2. Open the project in Android Studio
