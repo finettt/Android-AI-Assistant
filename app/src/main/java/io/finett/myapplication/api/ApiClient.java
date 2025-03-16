@@ -26,4 +26,8 @@ public class ApiClient {
         }
         return retrofit;
     }
+    
+    public static OpenRouterApi getOpenRouterApi() {
+        return getClient().create(OpenRouterApi.class);
+    }
 } 

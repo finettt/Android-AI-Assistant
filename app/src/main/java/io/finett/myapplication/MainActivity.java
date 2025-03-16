@@ -114,19 +114,19 @@ public class MainActivity extends BaseAccessibilityActivity implements
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
+        openRouterApi = ApiClient.getOpenRouterApi();
+        accessibilityManager = new AccessibilityManager(this, null);
         userManager = new UserManager(this);
-        accessibilityManager = new AccessibilityManager(this, null); // TTS будет инициализирован позже
         
         setupToolbar();
         setupRecyclerViews();
-        setupMessageInput();
-        setupApi();
         setupNewChatButton();
+        setupMessageInput();
         setupAttachButton();
-        setupSettingsReceiver();
-        
-        // Загружаем чаты и восстанавливаем последний активный
         loadSavedChats();
+        setupApi();
+        setupSettingsReceiver();
+        setupAccessibilityButtons();
         
         // Проверяем наличие API ключа
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -764,5 +764,25 @@ public class MainActivity extends BaseAccessibilityActivity implements
         if (settingsReceiver != null) {
             unregisterReceiver(settingsReceiver);
         }
+    }
+
+    private void setupAccessibilityButtons() {
+        // Настраиваем кнопку переключения темы
+        binding.toggleThemeButton.setOnClickListener(v -> {
+            toggleHighContrastTheme();
+        });
+    }
+
+    private void toggleHighContrastTheme() {
+        boolean newHighContrastState = accessibilityManager.toggleHighContrast();
+        
+        // Показываем сообщение о смене темы
+        String message = newHighContrastState ? 
+                getString(R.string.high_contrast_enabled) : 
+                getString(R.string.high_contrast_disabled);
+        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        
+        // Перезапускаем активность для применения темы
+        recreateActivityWithTheme();
     }
 }

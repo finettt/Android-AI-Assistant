@@ -9,6 +9,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import io.finett.myapplication.R;
 import io.finett.myapplication.util.AccessibilityManager;
 
 public abstract class BaseAccessibilityActivity extends AppCompatActivity {
@@ -53,6 +54,14 @@ public abstract class BaseAccessibilityActivity extends AppCompatActivity {
     }
 
     protected void applyAccessibilitySettings() {
+        // Применяем тему в зависимости от настроек
+        if (accessibilityManager.isHighContrastEnabled()) {
+            setTheme(R.style.Theme_MyApplication_HighContrast);
+        } else {
+            setTheme(R.style.Theme_MyApplication);
+        }
+        
+        // Обновляем контент после смены темы
         View rootView = getWindow().getDecorView().getRootView();
         applyAccessibilitySettingsToViewHierarchy(rootView);
         onAccessibilitySettingsApplied();
@@ -71,16 +80,22 @@ public abstract class BaseAccessibilityActivity extends AppCompatActivity {
             accessibilityManager.applyTextSize((TextView) view);
         }
         
-        if (accessibilityManager.isHighContrastEnabled()) {
-            if (view instanceof TextView) {
-                ((TextView) view).setTextColor(0xFFFFFFFF);
-                view.setBackgroundColor(0xFF000000);
-            }
-        }
+        // Примечание: не устанавливаем цвета напрямую, так как это делает тема
     }
 
     // Метод для переопределения в дочерних активностях
     protected void onAccessibilitySettingsApplied() {
         // По умолчанию ничего не делаем
+    }
+
+    /**
+     * Перезапускает активность с плавной анимацией для корректной смены темы
+     * Используйте этот метод, если необходимо полностью перезагрузить интерфейс
+     */
+    protected void recreateActivityWithTheme() {
+        Intent intent = getIntent();
+        finish();
+        startActivity(intent);
+        overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out);
     }
 } 

@@ -133,6 +133,16 @@
                 android:drawableStart="@drawable/ic_accessibility"
                 android:drawablePadding="8dp" />
 
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/toggleThemeButton"
+                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_margin="16dp"
+                android:text="@string/toggle_contrast"
+                android:drawableStart="@drawable/ic_contrast"
+                android:drawablePadding="8dp" />
+
         </LinearLayout>
 
     </com.google.android.material.navigation.NavigationView>

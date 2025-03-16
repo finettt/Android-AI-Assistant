@@ -98,4 +98,22 @@ public class AccessibilityManager {
             vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE));
         }
     }
+
+    /**
+     * Переключает режим высокой контрастности
+     * @return новое состояние режима высокой контрастности
+     */
+    public boolean toggleHighContrast() {
+        boolean newState = !isHighContrastEnabled();
+        preferences.edit().putBoolean("high_contrast", newState).apply();
+        return newState;
+    }
+    
+    /**
+     * Устанавливает режим высокой контрастности в указанное состояние
+     * @param enabled желаемое состояние режима высокой контрастности
+     */
+    public void setHighContrast(boolean enabled) {
+        preferences.edit().putBoolean("high_contrast", enabled).apply();
+    }
 } 

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.MyApplication.HighContrast" parent="Theme.MyApplication">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary_high_contrast</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_high_contrast</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/secondary_high_contrast</item>
+        <item name="colorSecondaryVariant">@color/secondary_dark_high_contrast</item>
+        <item name="colorOnSecondary">@color/white</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/black</item>
+        <item name="colorSurface">@color/surface_high_contrast</item>
+        <item name="colorOnBackground">@color/white</item>
+        <item name="colorOnSurface">@color/white</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/white</item>
+        <item name="android:textColorSecondary">@color/yellow_high_contrast</item>
+    </style>
+</resources> 

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Robo</string>
+    <string name="app_name">Robo - Your AI Assistant</string>
     <string name="voice_input">Голосовой ввод</string>
     <string name="registration_title">Добро пожаловать!</string>
     <string name="registration_description">Пожалуйста, представьтесь. Это имя будет использоваться для обращения к вам.</string>
@@ -12,4 +12,20 @@
     <string name="take_photo">Сделать фото</string>
     <string name="start_voice_input">Начать голосовой ввод</string>
     <string name="manage_prompts">Управление промптами</string>
+    <string name="settings">Настройки</string>
+    <string name="theme_settings">Настройки темы</string>
+    <string name="high_contrast_mode">Режим высокого контраста</string>
+    <string name="high_contrast_description">Включить тему с высоким контрастом для лучшей читаемости</string>
+    <string name="text_size">Размер текста</string>
+    <string name="enable_high_contrast">Включить высокий контраст</string>
+    <string name="action_settings">Settings</string>
+    
+    <!-- Настройки доступности -->
+    <string name="accessibility_settings">Настройки доступности</string>
+    <string name="high_contrast_enabled">Включен режим высокого контраста</string>
+    <string name="high_contrast_disabled">Включен обычный режим</string>
+    <string name="toggle_contrast">Переключить контраст</string>
+    <string name="contrast_mode">Режим контрастности</string>
+    <string name="normal_theme">Обычная тема</string>
+    <string name="high_contrast_theme">Высококонтрастная тема</string>
 </resources>
