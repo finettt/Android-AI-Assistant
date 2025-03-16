@@ -13,4 +13,10 @@
     <color name="message_ai_background">#F5F5F5</color>
     <color name="message_user_text">#1565C0</color>
     <color name="message_ai_text">#6A1B9A</color>
+    
+    <!-- Цвета для высокого контраста -->
+    <color name="high_contrast_text">#000000</color>
+    <color name="high_contrast_background">#FFFFFF</color>
+    <color name="high_contrast_user_message">#000080</color>
+    <color name="high_contrast_ai_message">#006400</color>
 </resources>
