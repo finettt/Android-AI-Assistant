@@ -55,7 +55,7 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
     private FloatingActionButton captureButton;
     private PreviewView previewView;
     private Handler handler;
-    private static final int CAPTURE_DELAY = 1000; // 1 секунда
+    private static final int CAPTURE_DELAY = 1500; // 1.5 секунды
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -104,10 +104,26 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
                 cameraProvider.unbindAll();
                 cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture);
 
-                // Если включена автоматическая съемка
+                // Настраиваем интерфейс в зависимости от режима съемки
                 if (accessibilityManager.isAutoCaptureEnabled()) {
+                    // Автоматическая съемка - скрываем кнопку и запускаем таймер
+                    captureButton.setVisibility(View.GONE);
                     progressIndicator.setVisibility(View.VISIBLE);
+                    
+                    // Уведомляем пользователя о том, что фото будет сделано автоматически
+                    Toast.makeText(this, "Фото будет сделано автоматически через 1.5 секунды", 
+                            Toast.LENGTH_SHORT).show();
+                    
+                    // Запускаем съемку через заданное время
                     handler.postDelayed(this::captureImage, CAPTURE_DELAY);
+                } else {
+                    // Ручная съемка - показываем кнопку
+                    captureButton.setVisibility(View.VISIBLE);
+                    progressIndicator.setVisibility(View.GONE);
+                    
+                    // Уведомляем пользователя о необходимости нажать кнопку
+                    Toast.makeText(this, "Нажмите кнопку для съемки фото", 
+                            Toast.LENGTH_SHORT).show();
                 }
 
             } catch (ExecutionException | InterruptedException e) {
@@ -130,6 +146,10 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
     private void captureImage() {
         if (imageCapture == null) return;
 
+        // Показываем индикатор прогресса и блокируем кнопку
+        progressIndicator.setVisibility(View.VISIBLE);
+        captureButton.setEnabled(false);
+
         File photoFile = new File(getExternalCacheDir(), "photo.jpg");
         ImageCapture.OutputFileOptions outputOptions = 
                 new ImageCapture.OutputFileOptions.Builder(photoFile).build();
@@ -145,7 +165,9 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
                     @Override
                     public void onError(@NonNull ImageCaptureException exception) {
                         progressIndicator.setVisibility(View.GONE);
+                        captureButton.setEnabled(true);
                         exception.printStackTrace();
+                        showError("Ошибка при съемке фото");
                     }
                 });
     }
@@ -277,12 +299,25 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
     private void hideProgress() {
         runOnUiThread(() -> {
             progressIndicator.setVisibility(View.GONE);
-            captureButton.setEnabled(true);
+            
+            // Восстанавливаем состояние кнопки, если не используется автоматическая съемка
+            if (!accessibilityManager.isAutoCaptureEnabled()) {
+                captureButton.setVisibility(View.VISIBLE);
+                captureButton.setEnabled(true);
+            }
         });
     }
 
     private void showError(String message) {
-        runOnUiThread(() -> Toast.makeText(this, message, Toast.LENGTH_SHORT).show());
+        runOnUiThread(() -> {
+            Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+            
+            // В случае ошибки сбрасываем состояние интерфейса
+            if (!accessibilityManager.isAutoCaptureEnabled()) {
+                captureButton.setVisibility(View.VISIBLE);
+                captureButton.setEnabled(true);
+            }
+        });
     }
 
     @Override
