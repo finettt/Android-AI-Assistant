@@ -352,6 +352,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
         chatAdapter.addMessage(userMessage);
         currentChat.addMessage(userMessage);
         binding.messageInput.setText("");
+        
+        // Показываем индикатор загрузки
+        chatAdapter.setLoading(true);
 
         // Создаем запрос к API
         Map<String, Object> body = new HashMap<>();
@@ -363,13 +366,13 @@ public class MainActivity extends BaseAccessibilityActivity implements
         for (ChatMessage chatMessage : currentChat.getMessages()) {
             if (!chatMessage.hasAttachment()) {
                 Map<String, Object> messageMap = new HashMap<>();
-                messageMap.put("role", chatMessage.isUser() ? "user" : "assistant");
+                messageMap.put("role", chatMessage.isUserMessage() ? "user" : "assistant");
                 
                 // Создаем массив контента для текстового сообщения
                 ArrayList<Map<String, Object>> content = new ArrayList<>();
                 Map<String, Object> textContent = new HashMap<>();
                 textContent.put("type", "text");
-                textContent.put("text", chatMessage.getContent());
+                textContent.put("text", chatMessage.getText());
                 content.add(textContent);
                 
                 messageMap.put("content", content);
@@ -387,6 +390,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
         ).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // Скрываем индикатор загрузки
+                runOnUiThread(() -> chatAdapter.setLoading(false));
+                
                 if (response.isSuccessful() && response.body() != null) {
                     try {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
@@ -399,7 +405,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
                                 runOnUiThread(() -> {
                                     chatAdapter.addMessage(botMessage);
                                     currentChat.addMessage(botMessage);
-                                    binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
                                     saveChats();
                                 });
                             } else {
@@ -433,6 +438,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                // Скрываем индикатор загрузки
+                runOnUiThread(() -> chatAdapter.setLoading(false));
                 showError("Ошибка сети");
             }
         });
@@ -560,20 +567,47 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private void sendImageToAPI(String caption, String base64Image) {
+        if (apiKey == null) {
+            showError("API ключ не установлен");
+            showApiKeyDialog();
+            return;
+        }
+
+        // Показываем индикатор загрузки
+        chatAdapter.setLoading(true);
+        
+        // Создаем запрос к API
         Map<String, Object> body = new HashMap<>();
         body.put("model", currentChat.getModelId());
         
         ArrayList<Map<String, Object>> messages = new ArrayList<>();
+
+        // Добавляем все предыдущие сообщения для контекста
+        for (ChatMessage chatMessage : currentChat.getMessages()) {
+            if (!chatMessage.hasAttachment()) {
+                Map<String, Object> messageMap = new HashMap<>();
+                messageMap.put("role", chatMessage.isUserMessage() ? "user" : "assistant");
+                
+                // Создаем массив контента для текстового сообщения
+                ArrayList<Map<String, Object>> content = new ArrayList<>();
+                Map<String, Object> textContent = new HashMap<>();
+                textContent.put("type", "text");
+                textContent.put("text", chatMessage.getText());
+                content.add(textContent);
+                
+                messageMap.put("content", content);
+                messages.add(messageMap);
+            }
+        }
         
-        // Создаем сообщение пользователя с изображением
-        Map<String, Object> userMessage = new HashMap<>();
-        userMessage.put("role", "user");
+        // Добавляем новое сообщение с изображением
+        Map<String, Object> messageMap = new HashMap<>();
+        messageMap.put("role", "user");
         
-        // Создаем массив контента
         ArrayList<Map<String, Object>> content = new ArrayList<>();
         
-        // Добавляем текст, если есть подпись
-        if (!caption.isEmpty()) {
+        // Добавляем текстовую часть, если есть подпись
+        if (!TextUtils.isEmpty(caption)) {
             Map<String, Object> textContent = new HashMap<>();
             textContent.put("type", "text");
             textContent.put("text", caption);
@@ -585,14 +619,14 @@ public class MainActivity extends BaseAccessibilityActivity implements
         imageContent.put("type", "image_url");
         Map<String, String> imageUrl = new HashMap<>();
         imageUrl.put("url", "data:image/jpeg;base64," + base64Image);
-        imageUrl.put("detail", "auto");
         imageContent.put("image_url", imageUrl);
         content.add(imageContent);
         
-        userMessage.put("content", content);
-        messages.add(userMessage);
+        messageMap.put("content", content);
+        messages.add(messageMap);
+        
         body.put("messages", messages);
-
+        
         // Отправляем запрос
         openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
@@ -602,6 +636,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
         ).enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                // Скрываем индикатор загрузки
+                runOnUiThread(() -> chatAdapter.setLoading(false));
+                
                 if (response.isSuccessful() && response.body() != null) {
                     try {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
@@ -614,7 +651,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
                                 runOnUiThread(() -> {
                                     chatAdapter.addMessage(botMessage);
                                     currentChat.addMessage(botMessage);
-                                    binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
                                     saveChats();
                                 });
                             } else {
@@ -628,18 +664,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
                     }
                 } else {
                     try {
-                        if (response.errorBody() != null) {
-                            String errorBody = response.errorBody().string();
-                            showError("Ошибка сервера: " + errorBody);
-                        } else {
-                            showError("Ошибка сервера: " + response.code());
-                        }
-                        if (response.code() == 401) {
-                            runOnUiThread(() -> {
-                                apiKey = null;
-                                showApiKeyDialog();
-                            });
-                        }
+                        String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
+                        showError(errorBody);
                     } catch (Exception e) {
                         showError("Ошибка при обработке ответа сервера");
                     }
@@ -648,7 +674,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                showError("Ошибка сети");
+                // Скрываем индикатор загрузки
+                runOnUiThread(() -> chatAdapter.setLoading(false));
+                showError("Ошибка сети: " + t.getMessage());
             }
         });
     }
@@ -671,7 +699,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
     public void onEditMessage(ChatMessage message, int position) {
         View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_edit_message, null);
         TextInputEditText input = dialogView.findViewById(R.id.messageInput);
-        input.setText(message.getContent());
+        input.setText(message.getText());
 
         new MaterialAlertDialogBuilder(this)
                 .setTitle("Редактировать сообщение")
@@ -679,7 +707,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 .setPositiveButton("Сохранить", (dialog, which) -> {
                     String newContent = input.getText().toString().trim();
                     if (!newContent.isEmpty()) {
-                        message.setContent(newContent);
+                        message.setText(newContent);
                         chatAdapter.updateMessage(position);
                         saveChats();
                     }

@@ -20,18 +20,36 @@
         android:layout_height="0dp"
         android:clipToPadding="false"
         android:padding="8dp"
-        app:layout_constraintBottom_toTopOf="@id/voice_chat_mic_button"
+        app:layout_constraintBottom_toTopOf="@id/button_container"
         app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/voice_chat_mic_button"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:id="@+id/button_container"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_margin="16dp"
-        android:contentDescription="@string/start_voice_input"
-        android:src="@drawable/ic_mic"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:padding="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent" />
+        app:layout_constraintStart_toStartOf="parent">
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/voice_chat_camera_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="24dp"
+            android:contentDescription="@string/start_camera"
+            android:src="@drawable/ic_camera"
+            app:fabSize="normal" />
+
+        <com.google.android.material.floatingactionbutton.FloatingActionButton
+            android:id="@+id/voice_chat_mic_button"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/start_voice_input"
+            android:src="@drawable/ic_mic"
+            app:fabSize="normal" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout> 

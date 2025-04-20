@@ -12,6 +12,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.bumptech.glide.Glide;
@@ -25,12 +26,16 @@ import io.finett.myapplication.R;
 import io.finett.myapplication.model.ChatMessage;
 import io.finett.myapplication.util.AccessibilityManager;
 
-public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHolder> {
+public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final List<ChatMessage> messages = new ArrayList<>();
     private final Context context;
     private final OnAttachmentClickListener attachmentClickListener;
     private final OnMessageActionListener messageActionListener;
     private final AccessibilityManager accessibilityManager;
+    
+    private boolean isLoading = false;
+    private static final int VIEW_TYPE_MESSAGE = 0;
+    private static final int VIEW_TYPE_LOADING = 1;
 
     public ChatAdapter(Context context, OnAttachmentClickListener attachmentClickListener) {
         this.context = context;
@@ -41,13 +46,26 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
 
     @NonNull
     @Override
-    public MessageViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
-        View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
-        return new MessageViewHolder(view);
+    public RecyclerView.ViewHolder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+        if (viewType == VIEW_TYPE_LOADING) {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_loading_message, parent, false);
+            return new LoadingViewHolder(view);
+        } else {
+            View view = LayoutInflater.from(context).inflate(R.layout.item_message, parent, false);
+            return new MessageViewHolder(view);
+        }
     }
 
     @Override
-    public void onBindViewHolder(@NonNull MessageViewHolder holder, int position) {
+    public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
+        if (holder instanceof MessageViewHolder) {
+            bindMessageViewHolder((MessageViewHolder) holder, position);
+        } else if (holder instanceof LoadingViewHolder) {
+            // No binding needed for loading placeholder
+        }
+    }
+    
+    private void bindMessageViewHolder(MessageViewHolder holder, int position) {
         ChatMessage message = messages.get(position);
         
         // Применяем настройки доступности к тексту
@@ -57,7 +75,24 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
             holder.messageText.setTextColor(0xFFFFFFFF);
         }
 
-        holder.messageText.setText(message.getContent());
+        // Устанавливаем выравнивание в зависимости от отправителя
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        
+        if (message.isUserMessage()) {
+            params.gravity = Gravity.END;
+            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_user);
+        } else {
+            params.gravity = Gravity.START;
+            holder.messageContainer.setBackgroundResource(R.drawable.bg_message_ai);
+        }
+        holder.messageContainer.setLayoutParams(params);
+
+        holder.messageText.setText(message.getText());
+        
+        // Отображение отметки о редактировании
+        holder.editedMark.setVisibility(message.isEdited() ? View.VISIBLE : View.GONE);
         
         // Если есть вложение
         if (message.hasAttachment()) {
@@ -80,15 +115,15 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
 
         // Добавляем обработку долгого нажатия для редактирования/удаления
         holder.itemView.setOnLongClickListener(v -> {
-            if (messageActionListener != null && message.isUser()) {
+            if (messageActionListener != null && message.isUserMessage()) {
                 showMessageActions(message, position, holder.itemView);
             }
             return true;
         });
 
         // Озвучиваем сообщение, если включена голосовая обратная связь
-        if (!message.isUser() && accessibilityManager.isTtsFeedbackEnabled()) {
-            accessibilityManager.speak(message.getContent());
+        if (!message.isUserMessage() && accessibilityManager.isTtsFeedbackEnabled()) {
+            accessibilityManager.speak(message.getText());
         }
 
         // Вибрируем при новом сообщении, если включена вибрация
@@ -122,7 +157,12 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
 
     @Override
     public int getItemCount() {
-        return messages.size();
+        return messages.size() + (isLoading ? 1 : 0);
+    }
+    
+    @Override
+    public int getItemViewType(int position) {
+        return (position == messages.size() && isLoading) ? VIEW_TYPE_LOADING : VIEW_TYPE_MESSAGE;
     }
 
     public void setMessages(List<ChatMessage> messages) {
@@ -136,6 +176,7 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
     public void addMessage(ChatMessage message) {
         messages.add(message);
         notifyItemInserted(messages.size() - 1);
+        scrollToLastItem();
     }
 
     public void updateMessage(int position) {
@@ -150,6 +191,27 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
     public void clear() {
         messages.clear();
         notifyDataSetChanged();
+    }
+    
+    public void setLoading(boolean loading) {
+        if (this.isLoading != loading) {
+            this.isLoading = loading;
+            if (loading) {
+                notifyItemInserted(messages.size());
+                scrollToLastItem();
+            } else {
+                notifyItemRemoved(messages.size());
+            }
+        }
+    }
+    
+    private void scrollToLastItem() {
+        if (context instanceof AppCompatActivity) {
+            RecyclerView recyclerView = ((AppCompatActivity) context).findViewById(R.id.chatRecyclerView);
+            if (recyclerView != null) {
+                recyclerView.smoothScrollToPosition(getItemCount() - 1);
+            }
+        }
     }
 
     static class MessageViewHolder extends RecyclerView.ViewHolder {
@@ -170,6 +232,12 @@ public class ChatAdapter extends RecyclerView.Adapter<ChatAdapter.MessageViewHol
             imageCaption = itemView.findViewById(R.id.imageCaption);
             fileAttachmentLayout = itemView.findViewById(R.id.fileAttachmentLayout);
             fileNameText = itemView.findViewById(R.id.fileNameText);
+        }
+    }
+    
+    static class LoadingViewHolder extends RecyclerView.ViewHolder {
+        LoadingViewHolder(View itemView) {
+            super(itemView);
         }
     }
 

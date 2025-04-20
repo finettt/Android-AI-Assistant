@@ -1,22 +1,39 @@
 package io.finett.myapplication.model;
 
 public class SystemPrompt {
-    private String content;
+    private String text;
     private String description;
     private boolean isActive;
+    private boolean isDefault;
+    private String id;
 
-    public SystemPrompt(String content, String description) {
-        this.content = content;
+    public SystemPrompt() {
+        this.id = String.valueOf(System.currentTimeMillis());
+    }
+
+    public SystemPrompt(String text, String description) {
+        this();
+        this.text = text;
         this.description = description;
-        this.isActive = false;
     }
 
-    public String getContent() {
-        return content;
+    public SystemPrompt(String text, String description, boolean isActive, boolean isDefault) {
+        this(text, description);
+        this.isActive = isActive;
+        this.isDefault = isDefault;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public SystemPrompt(String id, String text, String description, boolean isActive, boolean isDefault) {
+        this(text, description, isActive, isDefault);
+        this.id = id;
+    }
+
+    public String getText() {
+        return text;
+    }
+
+    public void setText(String text) {
+        this.text = text;
     }
 
     public String getDescription() {
@@ -33,5 +50,21 @@ public class SystemPrompt {
 
     public void setActive(boolean active) {
         isActive = active;
+    }
+
+    public boolean isDefault() {
+        return isDefault;
+    }
+
+    public void setDefault(boolean aDefault) {
+        isDefault = aDefault;
+    }
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
     }
 } 

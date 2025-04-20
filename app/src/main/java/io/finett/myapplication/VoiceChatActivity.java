@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -17,6 +18,11 @@ import android.view.animation.AccelerateDecelerateInterpolator;
 import android.animation.AnimatorInflater;
 import android.animation.Animator;
 import android.widget.Toast;
+import android.location.Address;
+import android.location.Location;
+import android.widget.EditText;
+import android.util.Log;
+import android.content.SharedPreferences;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -35,6 +41,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import io.finett.myapplication.adapter.ChatAdapter;
 import io.finett.myapplication.adapter.VoiceChatAdapter;
@@ -47,9 +62,11 @@ import io.finett.myapplication.util.PromptManager;
 import io.finett.myapplication.model.SystemPrompt;
 import io.finett.myapplication.util.CommandProcessor;
 import io.finett.myapplication.base.BaseAccessibilityActivity;
+import io.finett.myapplication.util.ContextInfoProvider;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import com.google.gson.Gson;
 
 public class VoiceChatActivity extends BaseAccessibilityActivity implements TextToSpeech.OnInitListener, RecognitionListener {
     private ActivityVoiceChatBinding binding;
@@ -59,12 +76,16 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private TextToSpeech textToSpeech;
     private boolean isListening = false;
     private boolean isSpeaking = false;
-    private static final String MODEL_ID = "minimax/minimax-01";
+    private static final String MODEL_ID = "openai/gpt-3.5-turbo";
+    private static final String API_URL = "https://openrouter.ai/api/v1/chat/completions";
     private String apiKey;
     private static final int PERMISSION_REQUEST_CODE = 123;
+    private static final int PERMISSION_LOCATION_REQUEST_CODE = 125;
+    private static final int PERMISSION_BLUETOOTH_REQUEST_CODE = 127;
     private static final long SPEECH_TIMEOUT_MILLIS = 1500; // 1.5 секунды тишины для завершения
     private boolean isProcessingSpeech = false;
     private long lastVoiceTime = 0;
+    
     private final Runnable speechTimeoutRunnable = new Runnable() {
         @Override
         public void run() {
@@ -78,6 +99,12 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private CommandProcessor commandProcessor;
     private RecyclerView recyclerView;
     private FloatingActionButton micButton;
+    private FloatingActionButton cameraButton;
+    private ContextInfoProvider contextInfoProvider;
+    private static final String TAG = "VoiceChatActivity";
+    private static final int PERMISSION_RECORD_AUDIO = 123;
+    private static final int CAMERA_REQUEST_CODE = 124;
+    private List<ChatMessage> messagesList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -100,25 +127,127 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         });
 
         promptManager = new PromptManager(this);
-        apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
-                .getString(MainActivity.API_KEY_PREF, null);
+        
+        // Сначала проверяем новое хранилище для API ключа
+        apiKey = getSharedPreferences("ApiPrefs", MODE_PRIVATE)
+                .getString("api_key", null);
+        
+        // Если ключ не найден, пробуем старое хранилище
+        if (apiKey == null || apiKey.isEmpty()) {
+            apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
+                    .getString(MainActivity.API_KEY_PREF, null);
+        }
 
         recyclerView = findViewById(R.id.voice_chat_recycler_view);
         micButton = findViewById(R.id.voice_chat_mic_button);
+        cameraButton = findViewById(R.id.voice_chat_camera_button);
 
         setupRecyclerView();
         setupMicButton();
+        setupCameraButton();
         setupApi();
+        setupContextInfo();
         checkPermissionAndInitRecognizer();
         initTextToSpeech();
 
-        commandProcessor = new CommandProcessor(this, textToSpeech, result -> {
-            ChatMessage botMessage = new ChatMessage(result, false);
-            runOnUiThread(() -> {
-                chatAdapter.addMessage(botMessage);
-                recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
-            });
+        commandProcessor = new CommandProcessor(
+            this, 
+            textToSpeech, 
+            result -> {
+                // Обработка результатов анализа изображения
+                ChatMessage botMessage = new ChatMessage(result, false);
+                runOnUiThread(() -> {
+                    chatAdapter.addMessage(botMessage);
+                    recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                });
+            },
+            // Обработка системных команд
+            (command, response) -> {
+                ChatMessage userMessage = new ChatMessage(command, true);
+                ChatMessage botMessage = new ChatMessage(response, false);
+                runOnUiThread(() -> {
+                    chatAdapter.addMessage(userMessage);
+                    chatAdapter.addMessage(botMessage);
+                    recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                    speakText(response);
+                });
+            }
+        );
+    }
+
+    private void setupContextInfo() {
+        contextInfoProvider = new ContextInfoProvider(this);
+        contextInfoProvider.setOnContextInfoUpdatedListener(new ContextInfoProvider.OnContextInfoUpdatedListener() {
+            @Override
+            public void onLocationUpdated(Location location, Address address) {
+                // Локация обновлена, можно обновить интерфейс или уведомить пользователя
+                Log.d("VoiceChatActivity", "Location updated: " + address.getLocality());
+            }
         });
+        
+        // Пробуем узнать имя пользователя, если не сохранено - спрашиваем
+        String userName = contextInfoProvider.getUserName();
+        if (userName.isEmpty()) {
+            showUserNameDialog();
+        } else if (apiKey == null || apiKey.isEmpty()) {
+            // Если имя есть, но нет API ключа, запрашиваем ключ
+            showApiKeyDialog();
+        }
+    }
+
+    private void showUserNameDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Как вас зовут?");
+
+        final EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        builder.setView(input);
+
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            String name = input.getText().toString().trim();
+            if (!name.isEmpty()) {
+                contextInfoProvider.saveUserName(name);
+                
+                // После получения имени показываем диалог для ввода API ключа
+                showApiKeyDialog();
+            }
+        });
+        
+        builder.setCancelable(false);
+        builder.show();
+    }
+    
+    private void showApiKeyDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Введите ваш API ключ");
+        builder.setMessage("Для работы с OpenRouter API необходим ключ. Вы можете получить его на сайте openrouter.ai");
+
+        final EditText input = new EditText(this);
+        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
+        if (apiKey != null && !apiKey.isEmpty()) {
+            input.setText(apiKey);
+        }
+        builder.setView(input);
+
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            String key = input.getText().toString().trim();
+            if (!key.isEmpty()) {
+                // Сохраняем API ключ
+                SharedPreferences prefs = getSharedPreferences("ApiPrefs", MODE_PRIVATE);
+                prefs.edit().putString("api_key", key).apply();
+                apiKey = key;
+                
+                // Добавляем приветственное сообщение только после ввода API ключа
+                String userName = contextInfoProvider.getUserName();
+                ChatMessage welcomeMessage = new ChatMessage(
+                        "Привет, " + userName + "! Я - ваш голосовой помощник. Чем могу помочь?", false);
+                chatAdapter.addMessage(welcomeMessage);
+                speakText(welcomeMessage.getText());
+            }
+        });
+        
+        builder.setCancelable(false);
+        builder.show();
     }
 
     private void checkPermissionAndInitRecognizer() {
@@ -143,6 +272,29 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 showError("Необходимо разрешение на использование микрофона");
                 finish();
             }
+        } else if (requestCode == PERMISSION_LOCATION_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Разрешение на локацию получено, обновляем информацию о местоположении
+                contextInfoProvider.updateLocationInfo();
+                ChatMessage botMessage = new ChatMessage("Разрешение на использование местоположения получено", false);
+                chatAdapter.addMessage(botMessage);
+                speakText(botMessage.getText());
+            } else {
+                ChatMessage botMessage = new ChatMessage("Для работы с местоположением необходимо разрешение", false);
+                chatAdapter.addMessage(botMessage);
+                speakText(botMessage.getText());
+            }
+        } else if (requestCode == PERMISSION_BLUETOOTH_REQUEST_CODE) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Разрешение на Bluetooth получено
+                ChatMessage botMessage = new ChatMessage("Разрешение на использование Bluetooth получено", false);
+                chatAdapter.addMessage(botMessage);
+                speakText(botMessage.getText());
+            } else {
+                ChatMessage botMessage = new ChatMessage("Для работы с Bluetooth необходимо разрешение", false);
+                chatAdapter.addMessage(botMessage);
+                speakText(botMessage.getText());
+            }
         } else if (CommunicationManager.handlePermissionResult(requestCode, permissions, grantResults)) {
             // Разрешение для звонка или SMS получено
             Toast.makeText(this, "Разрешение получено", Toast.LENGTH_SHORT).show();
@@ -158,19 +310,27 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private void setupMicButton() {
         micButton.setOnClickListener(v -> {
             if (isSpeaking) {
+                // Если идет речь, останавливаем ее
                 if (textToSpeech != null) {
                     textToSpeech.stop();
                     isSpeaking = false;
                 }
             } else if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                     != PackageManager.PERMISSION_GRANTED) {
+                // Если нет разрешения, запрашиваем его
                 checkPermissionAndInitRecognizer();
-            } else if (!isListening) {
-                startListening();
-            } else {
+            } else if (isListening) {
+                // Если слушаем команды, останавливаем
                 stopListening();
+            } else {
+                // Если не слушаем, начинаем слушать команды
+                startListening();
             }
         });
+    }
+
+    private void setupCameraButton() {
+        cameraButton.setOnClickListener(v -> startCameraActivity());
     }
 
     private void setupApi() {
@@ -220,19 +380,53 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             
             // Устанавливаем специальный промпт для голосового помощника
             SystemPrompt assistantPrompt = new SystemPrompt(
-                "Ты - Robo, дружелюбный голосовой помощник. " +
-                "Отвечай кратко и по делу, используя разговорный стиль. " +
-                "Старайся давать ответы не длиннее 2-3 предложений. " +
-                "Используй простые слова и избегай сложных терминов. " +
-                "Если не знаешь ответа, так и скажи. " +
-                "Не используй смайлики и эмодзи. " +
-                "Всегда отвечай на русском языке.",
+                getSystemPrompt(),
                 "Голосовой помощник Robo"
             );
             promptManager.setActivePrompt(assistantPrompt);
         } else {
             showError("Ошибка инициализации синтеза речи");
         }
+    }
+
+    private String getSystemPrompt() {
+        String defaultPrompt = 
+                "Ты русскоязычный голосовой помощник. Ты общаешься с пользователем через голосовой интерфейс.\n" +
+                "Ответы должны быть короткими, дружелюбными и на русском языке.\n" +
+                "Используй простой разговорный язык.\n" +
+                "Не используй эмодзи или сложные термины.\n" +
+                "Если у тебя есть контекстная информация о пользователе (имя, время суток, местоположение), используй её в своих ответах.\n" +
+                "Обращайся к пользователю по имени, если оно известно.\n\n" +
+                
+                "Ты можешь выполнить следующие команды:\n" +
+                "1. Управление системой:\n" +
+                "   - Включить/выключить Wi-Fi, Bluetooth, геолокацию\n" +
+                "   - Регулировать громкость\n" +
+                "   - Открыть системные настройки\n\n" +
+                
+                "2. Контекстная информация:\n" +
+                "   - Сообщить текущее время и дату\n" +
+                "   - Сообщить местоположение пользователя\n\n" +
+                
+                "3. Использование камеры:\n" +
+                "   - Анализировать изображение с камеры\n\n" +
+                
+                "4. Календарь и планирование:\n" +
+                "   - Проверять события в календаре (сегодня, завтра, в определенную дату)\n" +
+                "   - Открывать календарь\n" +
+                "   - Создавать новые события\n\n" +
+                
+                "5. Карты и навигация:\n" +
+                "   - Показывать места на карте\n" +
+                "   - Прокладывать маршруты\n" +
+                "   - Искать места поблизости\n" +
+                "   - Находить информацию о местоположении\n\n" +
+                
+                "Пожалуйста, отвечай дружелюбно и лаконично, всегда на русском языке.";
+        
+        // Load from settings if available
+        SharedPreferences sharedPreferences = getSharedPreferences("app_settings", MODE_PRIVATE);
+        return sharedPreferences.getString("system_prompt", defaultPrompt);
     }
 
     private void startListening() {
@@ -282,7 +476,14 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private void sendMessageToAPI(String message) {
         ChatMessage userMessage = new ChatMessage(message, true);
         chatAdapter.addMessage(userMessage);
+        chatAdapter.setLoading(true);
         recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+        
+        // Если запрос похож на команду, проверяем через CommandProcessor
+        if (commandProcessor.processCommand(message)) {
+            chatAdapter.setLoading(false);
+            return;
+        }
 
         Map<String, Object> body = new HashMap<>();
         body.put("model", MODEL_ID);
@@ -297,62 +498,112 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             ArrayList<Map<String, Object>> systemContent = new ArrayList<>();
             Map<String, Object> systemTextContent = new HashMap<>();
             systemTextContent.put("type", "text");
-            systemTextContent.put("text", activePrompt.getContent());
+            systemTextContent.put("text", activePrompt.getText());
             systemContent.add(systemTextContent);
             systemMessage.put("content", systemContent);
             messages.add(systemMessage);
         }
         
-        // Добавляем сообщение пользователя
+        // Добавляем сообщение пользователя с контекстной информацией
         Map<String, Object> messageMap = new HashMap<>();
         messageMap.put("role", "user");
         ArrayList<Map<String, Object>> content = new ArrayList<>();
         Map<String, Object> textContent = new HashMap<>();
         textContent.put("type", "text");
-        textContent.put("text", message);
+        
+        // Получаем контекстную информацию
+        String time = contextInfoProvider.getFormattedTime();
+        String location = contextInfoProvider.getFormattedLocation();
+        String userName = contextInfoProvider.getUserName();
+        
+        // Форматируем сообщение с добавлением контекстной информации после запроса
+        StringBuilder enhancedMessage = new StringBuilder(message);
+        enhancedMessage.append("\n<time>").append(time).append("</time>");
+        enhancedMessage.append("\n<geo>").append(location).append("</geo>");
+        if (!userName.isEmpty()) {
+            enhancedMessage.append("\n<user>").append(userName).append("</user>");
+        }
+        
+        textContent.put("text", enhancedMessage.toString());
         content.add(textContent);
         messageMap.put("content", content);
         messages.add(messageMap);
         
         body.put("messages", messages);
-
-        openRouterApi.getChatCompletion(
-                "Bearer " + apiKey,
-                "https://github.com/your-username/your-repo",
-                "Android Voice Chat App",
-                body
-        ).enqueue(new Callback<Map<String, Object>>() {
-            @Override
-            public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
-                        ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
-                        Map<String, Object> choice = choices.get(0);
-                        Map<String, String> message = (Map<String, String>) choice.get("message");
-                        String content = message.get("content");
-                        
-                        ChatMessage botMessage = new ChatMessage(content, false);
-                        runOnUiThread(() -> {
-                            chatAdapter.addMessage(botMessage);
-                            recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
-                            speakText(content);
-                        });
-                    } catch (Exception e) {
-                        showError("Ошибка при обработке ответа");
-                        startListening(); // Включаем микрофон при ошибке
-                    }
-                } else {
-                    showError("Ошибка при получении ответа");
-                    startListening(); // Включаем микрофон при ошибке
+        body.put("max_tokens", 1000);
+        
+        // Добавляем API ключ
+        Map<String, String> headers = new HashMap<>();
+        headers.put("Authorization", "Bearer " + apiKey);
+        headers.put("HTTP-Referer", "https://robo-assistant.app");
+        headers.put("Content-Type", "application/json");
+        
+        // Отправка запроса в отдельном потоке
+        new Thread(() -> {
+            try {
+                HttpURLConnection connection = (HttpURLConnection) new URL(API_URL).openConnection();
+                connection.setRequestMethod("POST");
+                
+                // Устанавливаем заголовки
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    connection.setRequestProperty(entry.getKey(), entry.getValue());
                 }
+                
+                connection.setDoOutput(true);
+                
+                // Преобразуем Map в JSON
+                String jsonBody = mapToJson(body);
+                
+                // Отправляем тело запроса
+                try (OutputStream os = connection.getOutputStream()) {
+                    byte[] input = jsonBody.getBytes(StandardCharsets.UTF_8);
+                    os.write(input, 0, input.length);
+                }
+                
+                // Получаем ответ
+                int responseCode = connection.getResponseCode();
+                if (responseCode == HttpURLConnection.HTTP_OK) {
+                    // Читаем ответ
+                    StringBuilder response = new StringBuilder();
+                    try (BufferedReader br = new BufferedReader(
+                            new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
+                        String responseLine;
+                        while ((responseLine = br.readLine()) != null) {
+                            response.append(responseLine.trim());
+                        }
+                    }
+                    
+                    // Парсим JSON ответ
+                    String messageContent = parseResponse(response.toString());
+                    
+                    // Добавляем сообщение от бота в UI
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        ChatMessage botMessage = new ChatMessage(messageContent, false);
+                        chatAdapter.addMessage(botMessage);
+                        speakText(messageContent);
+                    });
+                    
+                } else {
+                    // Обработка ошибки
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        ChatMessage errorMessage = new ChatMessage(
+                                "Произошла ошибка при отправке запроса (код " + responseCode + ")", false);
+                        chatAdapter.addMessage(errorMessage);
+                    });
+                }
+                
+            } catch (Exception e) {
+                e.printStackTrace();
+                runOnUiThread(() -> {
+                    chatAdapter.setLoading(false);
+                    ChatMessage errorMessage = new ChatMessage(
+                            "Ошибка: " + e.getMessage(), false);
+                    chatAdapter.addMessage(errorMessage);
+                });
             }
-
-            @Override
-            public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                showError("Ошибка сети");
-                startListening(); // Включаем микрофон при ошибке сети
-            }
-        });
+        }).start();
     }
 
     private void showError(String message) {
@@ -396,13 +647,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
 
     @Override
     public void onError(int error) {
+        // Обычная обработка ошибок для режима слушания команд
         if (error == SpeechRecognizer.ERROR_NO_MATCH || 
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
             // Игнорируем эти ошибки, так как они часто возникают при нормальной работе
             stopListening();
-            if (!isSpeaking) {
-                startListening(); // Перезапускаем прослушивание, если не идет озвучка
-            }
             return;
         }
 
@@ -449,7 +698,9 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         List<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches != null && !matches.isEmpty()) {
             String text = matches.get(0);
-            // Пробуем обработать как команду
+            
+            // Обычное распознавание команд
+            // Обрабатываем сначала как команду
             if (!commandProcessor.processCommand(text)) {
                 // Если это не команда, отправляем в API
                 sendMessageToAPI(text);
@@ -473,6 +724,12 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             textToSpeech.stop();
             textToSpeech.shutdown();
         }
+        if (contextInfoProvider != null) {
+            contextInfoProvider.cleanup();
+        }
+        if (commandProcessor != null) {
+            commandProcessor.cleanup();
+        }
     }
 
     @Override
@@ -482,6 +739,15 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         stopListening();
         if (textToSpeech != null) {
             textToSpeech.stop();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Обновляем контекстную информацию при возвращении к активности
+        if (contextInfoProvider != null) {
+            contextInfoProvider.updateLocationInfo();
         }
     }
 
@@ -535,7 +801,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
 
         if (prompt != null) {
             descriptionInput.setText(prompt.getDescription());
-            contentInput.setText(prompt.getContent());
+            contentInput.setText(prompt.getText());
         }
 
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
@@ -556,7 +822,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 promptManager.savePrompt(newPrompt);
             } else {
                 prompt.setDescription(description);
-                prompt.setContent(content);
+                prompt.setText(content);
                 promptManager.savePrompt(prompt);
             }
         });
@@ -568,6 +834,13 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        // Скрываем индикатор загрузки
+        chatAdapter.setLoading(false);
+        // Проверяем запрос разрешений на Bluetooth
+        if (requestCode == 101 && resultCode == RESULT_OK) {
+            // Bluetooth был включен успешно
+            speakText("Bluetooth успешно включен");
+        }
         commandProcessor.handleActivityResult(requestCode, resultCode, data);
     }
 
@@ -585,5 +858,76 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         if (chatAdapter != null) {
             chatAdapter.notifyDataSetChanged();
         }
+    }
+
+    private void startCameraActivity() {
+        // Добавляем системное сообщение
+        ChatMessage systemMessage = new ChatMessage("Открываю камеру для анализа изображения...", false);
+        chatAdapter.addMessage(systemMessage);
+        chatAdapter.setLoading(true);
+        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+        
+        // Запускаем камеру
+        commandProcessor.startCameraActivity();
+    }
+
+    private void addMessage(String message, boolean isUser) {
+        ChatMessage chatMessage = new ChatMessage(message, isUser);
+        chatAdapter.addMessage(chatMessage);
+        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+        saveMessages();
+    }
+
+    private String mapToJson(Map<String, Object> map) {
+        JSONObject jsonObject = new JSONObject();
+        try {
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                jsonObject.put(entry.getKey(), parseObject(entry.getValue()));
+            }
+            return jsonObject.toString();
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return "{}";
+        }
+    }
+    
+    private Object parseObject(Object obj) throws JSONException {
+        if (obj instanceof Map) {
+            JSONObject json = new JSONObject();
+            Map<String, Object> map = (Map<String, Object>) obj;
+            for (Map.Entry<String, Object> entry : map.entrySet()) {
+                json.put(entry.getKey(), parseObject(entry.getValue()));
+            }
+            return json;
+        } else if (obj instanceof ArrayList) {
+            JSONArray json = new JSONArray();
+            ArrayList<Object> list = (ArrayList<Object>) obj;
+            for (Object item : list) {
+                json.put(parseObject(item));
+            }
+            return json;
+        } else {
+            return obj;
+        }
+    }
+    
+    private String parseResponse(String jsonResponse) {
+        try {
+            JSONObject jsonObject = new JSONObject(jsonResponse);
+            JSONArray choices = jsonObject.getJSONArray("choices");
+            JSONObject choice = choices.getJSONObject(0);
+            JSONObject message = choice.getJSONObject("message");
+            return message.getString("content");
+        } catch (JSONException e) {
+            e.printStackTrace();
+            return "Не удалось прочитать ответ от сервера.";
+        }
+    }
+
+    private void saveMessages() {
+        SharedPreferences prefs = getSharedPreferences("ChatMessages", MODE_PRIVATE);
+        Gson gson = new Gson();
+        String json = gson.toJson(messagesList);
+        prefs.edit().putString("messages_list", json).apply();
     }
 } 

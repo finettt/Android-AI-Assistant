@@ -1,10 +1,11 @@
 package io.finett.myapplication.model;
 
 import android.net.Uri;
+import java.util.Date;
 
 public class ChatMessage {
-    private String content;
-    private boolean isUser;
+    private String text;
+    private boolean isUserMessage;
     private long timestamp;
     private String attachmentUri;
     private AttachmentType attachmentType;
@@ -16,35 +17,43 @@ public class ChatMessage {
         FILE
     }
 
-    public ChatMessage(String content, boolean isUser) {
-        this.content = content;
-        this.isUser = isUser;
-        this.timestamp = System.currentTimeMillis();
+    public ChatMessage(String text, boolean isUserMessage) {
+        this.text = text;
+        this.isUserMessage = isUserMessage;
+        this.timestamp = new Date().getTime();
         this.attachmentType = AttachmentType.NONE;
         this.isEdited = false;
     }
 
-    public ChatMessage(String content, boolean isUser, String attachmentUri, AttachmentType attachmentType) {
-        this(content, isUser);
+    public ChatMessage(String text, boolean isUserMessage, String attachmentUri, AttachmentType attachmentType) {
+        this(text, isUserMessage);
         this.attachmentUri = attachmentUri;
         this.attachmentType = attachmentType;
     }
 
-    public String getContent() {
-        return content;
+    public String getText() {
+        return text;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setText(String text) {
+        this.text = text;
         this.isEdited = true;
     }
 
-    public boolean isUser() {
-        return isUser;
+    public boolean isUserMessage() {
+        return isUserMessage;
+    }
+
+    public void setUserMessage(boolean userMessage) {
+        isUserMessage = userMessage;
     }
 
     public long getTimestamp() {
         return timestamp;
+    }
+
+    public void setTimestamp(long timestamp) {
+        this.timestamp = timestamp;
     }
 
     public String getAttachmentUri() {

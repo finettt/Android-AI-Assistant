@@ -13,6 +13,7 @@
         android:layout_height="wrap_content"
         android:orientation="vertical"
         android:padding="12dp"
+        android:background="@drawable/message_background"
         android:foreground="?attr/selectableItemBackground">
 
         <LinearLayout

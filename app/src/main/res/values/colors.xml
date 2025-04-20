@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Base colors -->
-    <color name="white">#FFFFFF</color>
+    <color name="white">#FFFFFFFF</color>
     <color name="black">#000000</color>
 
     <!-- Normal theme colors -->
@@ -34,14 +34,16 @@
     <color name="text_normal">#000000</color>
     
     <!-- Цвета для сообщений -->
-    <color name="message_user_background">#EDE7F6</color>
-    <color name="message_ai_background">#F5F5F5</color>
-    <color name="message_user_text">#4A148C</color>
-    <color name="message_ai_text">#4A148C</color>
+    <color name="message_user_background">#E3F2FD</color>
+    <color name="message_ai_background">#F1F1F1</color>
+    <color name="message_user_text">#000000</color>
+    <color name="message_ai_text">#000000</color>
+    <color name="user_message_background">#E3F2FD</color>
+    <color name="assistant_message_background">#F1F1F1</color>
     
     <!-- Цвета для высокого контраста -->
-    <color name="high_contrast_user_message">#000080</color>
-    <color name="high_contrast_ai_message">#006400</color>
+    <color name="high_contrast_user_message">#FFFF00</color>
+    <color name="high_contrast_ai_message">#FFFFFF</color>
     
     <!-- Dark theme colors -->
     <color name="primary_dark_theme">#BB86FC</color>
