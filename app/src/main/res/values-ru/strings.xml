@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Алан - Your AI Assistant</string>
+    <string name="voice_input">Голосовой ввод</string>
+    <string name="registration_title">Добро пожаловать!</string>
+    <string name="registration_description">Пожалуйста, представьтесь. Это имя будет использоваться для обращения к вам.</string>
+    <string name="name_hint">Ваше имя</string>
+    <string name="action_save">Сохранить</string>
+    <string name="action_cancel">Отмена</string>
+    <string name="error_empty_name">Пожалуйста, введите ваше имя</string>
+    <string name="welcome_message">Привет, %1$s! Я - Алан, ваш голосовой помощник.</string>
+    <string name="take_photo">Сделать фото</string>
+    <string name="start_voice_input">Начать голосовой ввод</string>
+    <string name="start_camera">Открыть камеру</string>
+    <string name="manage_prompts">Управление промптами</string>
+    <string name="settings">Настройки</string>
+    <string name="theme_settings">Настройки темы</string>
+    <string name="high_contrast_mode">Режим высокого контраста</string>
+    <string name="high_contrast_description">Включить тему с высоким контрастом для лучшей читаемости</string>
+    <string name="text_size">Размер текста</string>
+    <string name="enable_high_contrast">Включить высокий контраст</string>
+    <string name="action_settings">Настройки</string>
+    
+    <!-- Настройки доступности -->
+    <string name="accessibility_settings">Настройки доступности</string>
+    <string name="high_contrast_enabled">Включен режим высокого контраста</string>
+    <string name="high_contrast_disabled">Включен обычный режим</string>
+    <string name="toggle_contrast">Переключить контраст</string>
+    <string name="contrast_mode">Режим контрастности</string>
+    <string name="normal_theme">Обычная тема</string>
+    <string name="high_contrast_theme">Высококонтрастная тема</string>
+    <string name="permission_title">Необходимы разрешения</string>
+    <string name="permissions_explanation">Для корректной работы приложения необходимо предоставить следующие разрешения</string>
+    <string name="grant_permissions">Предоставить разрешения</string>
+    <string name="app_icon">Иконка приложения</string>
+    <string name="permissions_granted">Все разрешения предоставлены</string>
+    <string name="permissions_needed">Требуются следующие разрешения для работы приложения:</string>
+    <string name="permissions_granted_toast">Все необходимые разрешения получены!</string>
+    <string name="permissions_denied_toast">Некоторые разрешения не были предоставлены</string>
+    <string name="permissions_required_explanation">Для правильной работы приложению необходимы все указанные разрешения. Пожалуйста, предоставьте их.</string>
+    <string name="permission_camera">Доступ к камере</string>
+    <string name="permission_microphone">Доступ к микрофону</string>
+    <string name="permission_location">Определение местоположения</string>
+    <string name="permission_storage">Доступ к файлам</string>
+    <string name="permission_rationale_title">Требуются разрешения</string>
+    <string name="permission_rationale_message">Для корректной работы приложения требуются следующие разрешения. Без них некоторые функции будут недоступны.</string>
+    <string name="ok">Понятно</string>
+    <string name="permissions_permanently_denied_title">Разрешения отклонены</string>
+    <string name="permissions_permanently_denied_message">Вы отклонили необходимые разрешения и выбрали больше не показывать запрос. Для работы приложения нужно включить разрешения вручную в настройках.</string>
+    <string name="cancel">Отмена</string>
+    <string name="permission_media">Доступ к медиафайлам</string>
+    <string name="permission_notifications">Показ уведомлений</string>
+    <string name="permission_calendar">Доступ к календарю</string>
+</resources> 

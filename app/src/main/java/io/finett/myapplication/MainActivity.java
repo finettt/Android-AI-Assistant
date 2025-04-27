@@ -8,9 +8,11 @@ import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
@@ -77,6 +79,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private Chat currentChat;
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
+    private static final int VOICE_ACTIVATION_PERMISSION_CODE = 124;
     private List<AIModel> availableModels = Arrays.asList(
         new AIModel("minimax/minimax-01", "MiniMax-01", "Мощная модель для голосового помощника"),
         new AIModel("anthropic/claude-3-opus", "Claude 3 Opus", "Самая мощная модель Claude"),
@@ -118,6 +121,14 @@ public class MainActivity extends BaseAccessibilityActivity implements
         accessibilityManager = new AccessibilityManager(this, null);
         userManager = new UserManager(this);
         
+        // Verify all required permissions are granted
+        if (!checkRequiredPermissions()) {
+            // If permissions are missing, redirect to permission activity
+            startActivity(new Intent(this, PermissionRequestActivity.class));
+            finish();
+            return;
+        }
+        
         setupToolbar();
         setupRecyclerViews();
         setupNewChatButton();
@@ -127,6 +138,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
         setupApi();
         setupSettingsReceiver();
         setupAccessibilityButtons();
+        setupVoiceActivationButton();
         
         // Проверяем наличие API ключа
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
@@ -143,6 +155,23 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
         // Применяем текущие настройки доступности
         applyAccessibilitySettings();
+    }
+
+    private boolean checkRequiredPermissions() {
+        // Check for critical permissions (microphone, camera, etc.)
+        String[] criticalPermissions = {
+            Manifest.permission.RECORD_AUDIO,
+            Manifest.permission.CAMERA
+        };
+        
+        for (String permission : criticalPermissions) {
+            if (ContextCompat.checkSelfPermission(this, permission) != 
+                    PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
+        }
+        
+        return true;
     }
 
     private void loadSavedChats() {
@@ -204,6 +233,10 @@ public class MainActivity extends BaseAccessibilityActivity implements
         binding.accessibilitySettingsButton.setOnClickListener(v -> {
             Intent intent = new Intent(this, AccessibilitySettingsActivity.class);
             startActivity(intent);
+            binding.drawerLayout.close();
+        });
+        binding.chatSettingsButton.setOnClickListener(v -> {
+            showChatSettingsDialog();
             binding.drawerLayout.close();
         });
     }
@@ -490,6 +523,38 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 launchCamera();
             } else {
                 showError("Необходимо разрешение на использование камеры");
+            }
+        } else if (requestCode == VOICE_ACTIVATION_PERMISSION_CODE) {
+            boolean allPermissionsGranted = true;
+            
+            // Проверяем все разрешения
+            for (int i = 0; i < permissions.length; i++) {
+                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
+                    if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])) {
+                        allPermissionsGranted = false;
+                        Log.d("MainActivity", "Microphone permission denied!");
+                    }
+                } else {
+                    Log.d("MainActivity", "Permission granted: " + permissions[i]);
+                }
+            }
+            
+            if (allPermissionsGranted) {
+                // Включаем голосовую активацию
+                startVoiceActivationService();
+            } else {
+                // Показываем сообщение о необходимости разрешения
+                Toast.makeText(this, 
+                        "Для голосовой активации необходимо разрешение на использование микрофона", 
+                        Toast.LENGTH_LONG).show();
+                
+                // Отключаем настройку голосовой активации
+                SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+                editor.putBoolean("voice_activation_enabled", false);
+                editor.apply();
+                
+                // Обновляем состояние кнопки
+                updateVoiceActivationButtonState();
             }
         }
     }
@@ -812,5 +877,165 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         // Перезапускаем активность для применения темы
         recreateActivityWithTheme();
+    }
+
+    private void setupVoiceActivationButton() {
+        // Добавляем кнопку для включения/выключения голосовой активации
+        binding.voiceActivationButton.setOnClickListener(v -> {
+            if (isVoiceActivationServiceRunning()) {
+                stopVoiceActivationService();
+            } else {
+                // Запускаем сервис без проверки разрешений
+                startVoiceActivationService();
+            }
+        });
+        
+        // Обновляем состояние кнопки
+        updateVoiceActivationButtonState();
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+    }
+
+    private boolean checkVoiceActivationPermissions() {
+        // Всегда возвращаем true, не будем запрашивать разрешения активно
+        return true;
+    }
+
+    private void updateVoiceActivationButtonState() {
+        boolean isRunning = isVoiceActivationServiceRunning();
+        binding.voiceActivationButton.setTextColor(
+                ContextCompat.getColor(this, 
+                isRunning ? R.color.active_color : R.color.inactive_color));
+        binding.voiceActivationButton.setText(
+                isRunning ? "Отключить голосовую активацию" : "Включить голосовую активацию");
+    }
+    
+    private boolean isVoiceActivationServiceRunning() {
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        return prefs.getBoolean("voice_activation_enabled", false);
+    }
+    
+    private void startVoiceActivationService() {
+        if (!isVoiceActivationServiceRunning()) {
+            // Запрашиваем необходимые разрешения для Android 13+ (API 33+)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Проверяем и запрашиваем разрешение на отправку уведомлений для Android 13+
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                        != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(this, 
+                            new String[]{Manifest.permission.POST_NOTIFICATIONS}, 
+                            VOICE_ACTIVATION_PERMISSION_CODE);
+                }
+            }
+            
+            // Проверяем разрешение на запись звука
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, 
+                        new String[]{Manifest.permission.RECORD_AUDIO}, 
+                        VOICE_ACTIVATION_PERMISSION_CODE);
+                return;
+            }
+            
+            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+            
+            // Сохраняем состояние сервиса
+            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+            editor.putBoolean("voice_activation_enabled", true);
+            editor.apply();
+            
+            updateVoiceActivationButtonState();
+        }
+    }
+    
+    private void stopVoiceActivationService() {
+        Intent serviceIntent = new Intent(this, VoiceActivationService.class);
+        stopService(serviceIntent);
+        
+        // Сохраняем состояние сервиса
+        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+        editor.putBoolean("voice_activation_enabled", false);
+        editor.apply();
+        
+        updateVoiceActivationButtonState();
+    }
+    
+    @Override
+    protected void onResume() {
+        super.onResume();
+        updateVoiceActivationButtonState();
+    }
+
+    private void showChatSettingsDialog() {
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
+        builder.setTitle("Настройки чата");
+        
+        // Создаем layout для диалога
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_chat_settings, null);
+        
+        // Задаем адаптер для списка моделей
+        ArrayAdapter<AIModel> modelAdapter = new ArrayAdapter<>(
+            this, android.R.layout.simple_spinner_dropdown_item, availableModels);
+        
+        android.widget.Spinner defaultModelSpinner = dialogView.findViewById(R.id.defaultModelSpinner);
+        defaultModelSpinner.setAdapter(modelAdapter);
+        
+        // Загружаем текущие настройки
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String currentModelId = prefs.getString("default_model_id", availableModels.get(0).getId());
+        
+        // Находим позицию текущей модели
+        for (int i = 0; i < availableModels.size(); i++) {
+            if (availableModels.get(i).getId().equals(currentModelId)) {
+                defaultModelSpinner.setSelection(i);
+                break;
+            }
+        }
+        
+        // Настраиваем переключатель сохранения истории
+        com.google.android.material.switchmaterial.SwitchMaterial saveHistorySwitch = 
+            dialogView.findViewById(R.id.saveHistorySwitch);
+        saveHistorySwitch.setChecked(prefs.getBoolean("save_chat_history", true));
+        
+        // Задаем поле для API ключа
+        TextInputEditText apiKeyInput = dialogView.findViewById(R.id.apiKeyInput);
+        apiKeyInput.setText(apiKey);
+        
+        builder.setView(dialogView);
+        
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            // Сохраняем настройки
+            SharedPreferences.Editor editor = prefs.edit();
+            
+            // Сохраняем выбранную модель
+            AIModel selectedModel = (AIModel) defaultModelSpinner.getSelectedItem();
+            editor.putString("default_model_id", selectedModel.getId());
+            
+            // Сохраняем настройку сохранения истории
+            editor.putBoolean("save_chat_history", saveHistorySwitch.isChecked());
+            
+            // Сохраняем API ключ
+            String newApiKey = apiKeyInput.getText().toString().trim();
+            if (!TextUtils.isEmpty(newApiKey)) {
+                editor.putString(API_KEY_PREF, newApiKey);
+                apiKey = newApiKey;
+            }
+            
+            editor.apply();
+            
+            Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("Отмена", null);
+        
+        builder.show();
     }
 }
