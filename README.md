@@ -1,11 +1,11 @@
-# Robo - Your AI Assistant
+# Alan - Your AI Assistant
 
 An intelligent voice assistant for Android with advanced camera capabilities and accessibility features. The application provides a convenient interface for voice control of your device, making calls, sending messages, and analyzing images.
 
 ## Features
 
 ### 🎤 Voice Control
-- Voice command recognition in Russian
+- Voice command recognition in English and Russian
 - Natural dialogues with the assistant
 - Automatic silence detection
 - Voice feedback
@@ -33,6 +33,11 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 - Adjustable text size
 - Voice and vibration feedback
 - Screen reader optimized structure
+
+### 🌍 Multilingual Support
+- Complete English and Russian localization
+- Language detection based on device settings
+- Easy to add more languages through resource files
 
 ## Installation
 
@@ -70,23 +75,20 @@ git clone https://github.com/finettt/Android-AI-Assistant.git
 ### Basic Voice Commands
 
 #### Calls
-- "Позвони [имя контакта]"
-- "Набери [номер телефона]"
-- "Вызови [имя контакта]"
+- English: "Call [contact name]"
+- Russian: "Позвони [имя контакта]"
 
 #### SMS
-- "Отправь SMS [имя контакта] с текстом [сообщение]"
-- "Напиши сообщение [имя контакта] [текст]"
+- English: "Send SMS to [contact name] with text [message]"
+- Russian: "Отправь SMS [имя контакта] с текстом [сообщение]"
 
 #### Web
-- "Открой [url]" - direct URL navigation
-- "Найди [запрос]" - Google search
-- "Поиск [запрос]" - Google search
+- English: "Open [url]", "Search for [query]"
+- Russian: "Открой [url]", "Найди [запрос]"
 
 #### Camera
-- "Включи камеру"
-- "Что сейчас видно на камере?"
-- "Опиши что видишь"
+- English: "Turn on camera", "What do you see?"
+- Russian: "Включи камеру", "Что сейчас видно на камере?"
 
 ## Development
 
@@ -102,7 +104,8 @@ app/
 │   │   │   └── ...
 │   │   ├── res/
 │   │   │   ├── layout/
-│   │   │   ├── values/
+│   │   │   ├── values/          # Default (English) resources
+│   │   │   ├── values-ru/       # Russian resources
 │   │   │   └── ...
 │   │   └── AndroidManifest.xml
 │   ├── test/
@@ -121,6 +124,15 @@ app/
 For deep project cleanup, use:
 - Windows: `clean-project.bat`
 - Linux/macOS: `clean-project.sh`
+
+## Recent Updates
+
+### v1.1.0 (April 2025)
+- Added complete English localization
+- Separated string resources by language
+- Fixed UI issues related to icon tinting
+- Improved voice activation reliability
+- Added accessibility enhancements
 
 ## Contributing
 
