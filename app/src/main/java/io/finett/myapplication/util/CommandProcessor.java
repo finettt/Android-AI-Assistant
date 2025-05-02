@@ -28,6 +28,9 @@ public class CommandProcessor {
     private List<String> contextInfoPatterns;
     private List<String> calendarPatterns;
     private List<String> mapsPatterns;
+    private List<String> phonePatterns;
+    private List<String> smsPatterns;
+    private List<String> browserPatterns;
     private static final int CAMERA_REQUEST_CODE = 100;
     private OnImageAnalysisResultListener imageAnalysisResultListener;
     private SystemInteractionManager systemManager;
@@ -35,6 +38,8 @@ public class CommandProcessor {
     private CalendarManager calendarManager;
     private MapsManager mapsManager;
     private OnCommandProcessedListener commandProcessedListener;
+    private CommunicationManager communicationManager;
+    private BrowserHelper browserHelper;
     
     // Паттерны для контекстной информации
     private Pattern timePattern;
@@ -67,6 +72,22 @@ public class CommandProcessor {
         this.contextInfoProvider = new ContextInfoProvider(activity);
         this.calendarManager = new CalendarManager(activity);
         this.mapsManager = new MapsManager(activity);
+        this.communicationManager = new CommunicationManager(activity);
+        this.browserHelper = new BrowserHelper(activity);
+        this.commandPatterns = initializeCommandPatterns();
+    }
+    
+    public CommandProcessor(Activity activity, TextToSpeech textToSpeech, 
+            CommunicationManager communicationManager, ContactsManager contactsManager, 
+            BrowserHelper browserHelper) {
+        this.activity = activity;
+        this.textToSpeech = textToSpeech;
+        this.communicationManager = communicationManager;
+        this.browserHelper = browserHelper;
+        this.systemManager = new SystemInteractionManager(activity);
+        this.contextInfoProvider = new ContextInfoProvider(activity);
+        this.calendarManager = new CalendarManager(activity);
+        this.mapsManager = new MapsManager(activity);
         this.commandPatterns = initializeCommandPatterns();
     }
     
@@ -76,6 +97,25 @@ public class CommandProcessor {
 
     private Map<String, List<String>> initializeCommandPatterns() {
         Map<String, List<String>> patterns = new HashMap<>();
+        
+        // Шаблоны для телефонных звонков
+        phonePatterns = new ArrayList<>();
+        phonePatterns.add(".*(?:позвони|набери|вызови|звонок) (?:на номер )?([a-zA-Zа-яА-Я0-9\\+]+).*");
+        phonePatterns.add(".*(?:позвони|набери|вызови|звонок) ([a-zA-Zа-яА-Я]+).*");
+        patterns.put("phone", phonePatterns);
+        
+        // Шаблоны для SMS
+        smsPatterns = new ArrayList<>();
+        smsPatterns.add(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я0-9\\+]+) (?:с текстом|текст) (.+).*");
+        smsPatterns.add(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я]+) (?:с текстом|текст) (.+).*");
+        patterns.put("sms", smsPatterns);
+        
+        // Шаблоны для браузера
+        browserPatterns = new ArrayList<>();
+        browserPatterns.add(".*(?:открой|запусти|загрузи|покажи) ((?:https?://)?(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(?:/[\\w-./]*)?).*");
+        browserPatterns.add(".*(?:найди|поиск|ищи|искать) (в интернете )?(.+).*");
+        browserPatterns.add(".*(?:найди|поиск|ищи|искать) (.+).*");
+        patterns.put("browser", browserPatterns);
         
         // Шаблоны для камеры
         cameraPatterns = new ArrayList<>();
@@ -163,6 +203,21 @@ public class CommandProcessor {
 
         command = command.toLowerCase().trim();
         
+        // Проверяем телефонные команды
+        if (processPhoneCommand(command)) {
+            return true;
+        }
+        
+        // Проверяем SMS команды
+        if (processSmsCommand(command)) {
+            return true;
+        }
+        
+        // Проверяем браузерные команды
+        if (processBrowserCommand(command)) {
+            return true;
+        }
+        
         // Сначала проверяем контекстные команды
         if (processContextInfoCommand(command)) {
             return true;
@@ -221,6 +276,89 @@ public class CommandProcessor {
             }
         }
 
+        return false;
+    }
+    
+    private boolean processPhoneCommand(String command) {
+        // Проверяем шаблоны для телефонных звонков
+        Pattern phoneNamePattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) ([a-zA-Zа-яА-Я]+).*", Pattern.CASE_INSENSITIVE);
+        Pattern phoneNumberPattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) (?:на номер )?([0-9\\+]+).*", Pattern.CASE_INSENSITIVE);
+        
+        Matcher nameMatcherPhone = phoneNamePattern.matcher(command);
+        Matcher numberMatcherPhone = phoneNumberPattern.matcher(command);
+        
+        if (nameMatcherPhone.matches()) {
+            String contactName = nameMatcherPhone.group(1);
+            if (communicationManager != null) {
+                communicationManager.makePhoneCall(contactName);
+                textToSpeech.speak("Набираю " + contactName, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        } else if (numberMatcherPhone.matches()) {
+            String phoneNumber = numberMatcherPhone.group(1);
+            if (communicationManager != null) {
+                communicationManager.makePhoneCall(phoneNumber);
+                textToSpeech.speak("Звоню на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    private boolean processSmsCommand(String command) {
+        // Проверяем шаблоны для SMS сообщений
+        Pattern smsNamePattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
+        Pattern smsNumberPattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([0-9\\+]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
+        
+        Matcher nameMatcher = smsNamePattern.matcher(command);
+        Matcher numberMatcher = smsNumberPattern.matcher(command);
+        
+        if (nameMatcher.matches()) {
+            String contactName = nameMatcher.group(1);
+            String message = nameMatcher.group(2);
+            if (communicationManager != null) {
+                communicationManager.sendSms(contactName, message);
+                textToSpeech.speak("Отправляю сообщение " + contactName, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        } else if (numberMatcher.matches()) {
+            String phoneNumber = numberMatcher.group(1);
+            String message = numberMatcher.group(2);
+            if (communicationManager != null) {
+                communicationManager.sendSms(phoneNumber, message);
+                textToSpeech.speak("Отправляю SMS на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    private boolean processBrowserCommand(String command) {
+        // Проверяем шаблоны для браузера
+        Pattern openUrlPattern = Pattern.compile(".*(?:открой|запусти|загрузи|покажи) ((?:https?://)?(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,}(?:/[\\w-./]*)?).*", Pattern.CASE_INSENSITIVE);
+        Pattern searchPattern = Pattern.compile(".*(?:найди|поиск|ищи|искать) (в интернете )?(.+).*", Pattern.CASE_INSENSITIVE);
+        
+        Matcher urlMatcher = openUrlPattern.matcher(command);
+        Matcher searchMatcher = searchPattern.matcher(command);
+        
+        if (urlMatcher.matches()) {
+            String url = urlMatcher.group(1);
+            if (browserHelper != null) {
+                browserHelper.processWebCommand(command);
+                textToSpeech.speak("Открываю " + url, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        } else if (searchMatcher.matches()) {
+            String query = searchMatcher.group(2);
+            if (browserHelper != null) {
+                browserHelper.processWebCommand(command);
+                textToSpeech.speak("Ищу в интернете: " + query, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        }
+        
         return false;
     }
     

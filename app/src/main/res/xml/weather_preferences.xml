@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <ListPreference
+        android:key="weather_api_provider"
+        android:title="Поставщик погоды"
+        android:summary="Выберите источник данных о погоде"
+        android:defaultValue="openmeteo"
+        android:entries="@array/weather_api_provider_entries"
+        android:entryValues="@array/weather_api_provider_values"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="weather_city"
+        android:title="@string/weather_city"
+        android:summary="@string/weather_city_summary"
+        android:defaultValue="Moscow"
+        app:useSimpleSummaryProvider="true" />
+
+    <ListPreference
+        android:key="weather_units"
+        android:title="@string/weather_units"
+        android:summary="@string/weather_units_summary"
+        android:defaultValue="metric"
+        android:entries="@array/weather_units_entries"
+        android:entryValues="@array/weather_units_values"
+        app:useSimpleSummaryProvider="true" />
+
+    <EditTextPreference
+        android:key="weather_api_key"
+        android:title="@string/weather_api_key"
+        android:summary="API ключ (для OpenWeatherMap и Weatherbit, Open-Meteo не требует)"
+        app:useSimpleSummaryProvider="false" />
+
+</PreferenceScreen> 

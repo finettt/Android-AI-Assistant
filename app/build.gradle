@@ -2,6 +2,16 @@ plugins {
     alias(libs.plugins.android.application)
 }
 
+// Загрузка секретных ключей из файла, который не попадет в Git
+def secretsPropertiesFile = rootProject.file('secrets.properties')
+def secretsProperties = new Properties()
+def defaultOpenRouterKey = "PLACEHOLDER_KEY" // Placeholder instead of real key
+
+// Пытаемся загрузить файл с секретами, если он существует
+if (secretsPropertiesFile.exists()) {
+    secretsProperties.load(new FileInputStream(secretsPropertiesFile))
+}
+
 android {
     namespace 'io.finett.myapplication'
     compileSdk 35
@@ -14,12 +24,40 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        
+        // Берем ключ из secrets.properties или используем значение по умолчанию
+        buildConfigField "String", "DEFAULT_OPENROUTER_API_KEY", 
+            secretsProperties.getProperty('OPENROUTER_API_KEY') != null ? 
+            "\"${secretsProperties.getProperty('OPENROUTER_API_KEY')}\"" : 
+            "\"${defaultOpenRouterKey}\""
+            
+        // Флаг для определения, использовать ли хардкодный ключ
+        buildConfigField "boolean", "USE_HARDCODED_KEY", 
+            project.hasProperty('USE_HARDCODED_KEY') ? 
+            "${project.property('USE_HARDCODED_KEY')}" : 
+            "false"
+            
+        // Default weather API key placeholder
+        buildConfigField "String", "DEFAULT_WEATHER_API_KEY", 
+            secretsProperties.getProperty('WEATHER_API_KEY') != null ? 
+            "\"${secretsProperties.getProperty('WEATHER_API_KEY')}\"" : 
+            "\"PLACEHOLDER_WEATHER_KEY\""
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        
+        // Внутренняя скрытая сборка для демонстраций (не упоминается публично)
+        internal {
+            initWith debug
+            buildConfigField "boolean", "USE_HARDCODED_KEY", "true"
+            // Уникальный суффикс applicationId, чтобы можно было установить рядом с основным приложением
+            applicationIdSuffix ".demo"
+            // Изменяем название приложения, добавляя "(Demo)" для различия
+            resValue "string", "app_name", "Alan (Demo)"
         }
     }
     compileOptions {
@@ -28,6 +66,7 @@ android {
     }
     buildFeatures {
         viewBinding true
+        buildConfig true
     }
 }
 

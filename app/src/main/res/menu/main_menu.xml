@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    
+    <item
+        android:id="@+id/action_weather_settings"
+        android:title="@string/weather_settings"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_voice_activation_settings"
+        android:title="Настройки голосовой активации"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_chat_settings"
+        android:title="Настройки чата"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_accessibility_settings"
+        android:title="Настройки доступности"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_about_me"
+        android:title="О себе"
+        app:showAsAction="never" />
+</menu> 

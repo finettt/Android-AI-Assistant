@@ -5,52 +5,48 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     
-    <!-- Голова (основной прямоугольник) -->
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M34,30 h40 a8,8 0 0,1 8,8 v20 a8,8 0 0,1 -8,8 h-40 a8,8 0 0,1 -8,-8 v-20 a8,8 0 0,1 8,-8" />
-    
-    <!-- Темная часть лица -->
-    <path
-        android:fillColor="#1A237E"
-        android:pathData="M38,35 h32 a4,4 0 0,1 4,4 v12 a4,4 0 0,1 -4,4 h-32 a4,4 0 0,1 -4,-4 v-12 a4,4 0 0,1 4,-4" />
-    
-    <!-- Глаза -->
-    <path
-        android:fillColor="#40C4FF"
-        android:pathData="M44,40 a4,4 0 1,1 0,8 a4,4 0 1,1 0,-8" />
-    <path
-        android:fillColor="#40C4FF"
-        android:pathData="M64,40 a4,4 0 1,1 0,8 a4,4 0 1,1 0,-8" />
-    
-    <!-- Нос/рот -->
-    <path
-        android:fillColor="#40C4FF"
-        android:pathData="M52,44 h4 v2 h-4 z" />
-    
-    <!-- Тело -->
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M44,66 h20 a8,8 0 0,1 8,8 v12 a8,8 0 0,1 -8,8 h-20 a8,8 0 0,1 -8,-8 v-12 a8,8 0 0,1 8,-8" />
-    
-    <!-- Синяя вставка на теле -->
-    <path
-        android:fillColor="#40C4FF"
-        android:pathData="M49,72 h10 v14 h-10 z" />
-    
-    <!-- Уши/антенны -->
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M26,42 h8 v8 h-8 z" />
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M74,42 h8 v8 h-8 z" />
-    
-    <!-- Руки -->
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M36,70 h8 v16 h-8 z" />
-    <path
-        android:fillColor="#E0E0E0"
-        android:pathData="M64,70 h8 v16 h-8 z" />
+    <!-- Группа с трансформацией для центрирования и уменьшения -->
+    <group
+        android:scaleX="0.7"
+        android:scaleY="0.7"
+        android:translateX="16.2"
+        android:translateY="16.2">
+        
+        <!-- Звуковые волны в стиле эквалайзера -->
+        <path
+            android:pathData="m41,48v12"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+            
+        <path
+            android:pathData="m51,36v36"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+            
+        <path
+            android:pathData="m61,42v24"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+            
+        <path
+            android:pathData="m71,30v48"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+
+        <!-- Дополнительная линия для баланса -->
+        <path
+            android:pathData="m31,39v30"
+            android:strokeColor="#FFFFFF"
+            android:strokeWidth="6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>

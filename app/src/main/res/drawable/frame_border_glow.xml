@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shape xmlns:android="http://schemas.android.com/apk/res/android" 
+    android:shape="rectangle">
+    
+    <!-- Полностью прозрачный фон -->
+    <solid android:color="#00FFFFFF" />
+    
+    <!-- Граница с эффектом свечения -->
+    <stroke
+        android:width="8dp"
+        android:color="#CC8C00FF" />
+    
+    <corners android:radius="24dp" />
+</shape> 

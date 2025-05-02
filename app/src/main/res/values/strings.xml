@@ -51,4 +51,11 @@
     <string name="permission_media">Media files access</string>
     <string name="permission_notifications">Show notifications</string>
     <string name="permission_calendar">Calendar access</string>
+    <string name="weather_settings">Настройки погоды</string>
+    <string name="weather_city">Город по умолчанию</string>
+    <string name="weather_city_summary">Город для получения прогноза погоды по умолчанию</string>
+    <string name="weather_units">Единицы измерения</string>
+    <string name="weather_units_summary">Выберите единицы измерения для температуры</string>
+    <string name="weather_api_key">API ключ для погоды</string>
+    <string name="weather_api_key_summary">Введите ваш API ключ от OpenWeatherMap</string>
 </resources>

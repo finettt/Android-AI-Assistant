@@ -2,15 +2,42 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
+    android:viewportWidth="21"
+    android:viewportHeight="21">
+    
+    <!-- Звуковые волны из предоставленного SVG -->
     <path
-        android:fillColor="?attr/colorPrimary"
-        android:pathData="M12,4L12,4c0.55,0 1,0.45 1,1v14c0,0.55 -0.45,1 -1,1h0c-0.55,0 -1,-0.45 -1,-1V5C11,4.45 11.45,4 12,4z"/>
+        android:pathData="m6.5 8.5v4"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+        
     <path
-        android:fillColor="?attr/colorPrimary"
-        android:pathData="M7,8L7,8c0.55,0 1,0.45 1,1v6c0,0.55 -0.45,1 -1,1h0c-0.55,0 -1,-0.45 -1,-1V9C6,8.45 6.45,8 7,8z"/>
+        android:pathData="m8.5 6.5v9"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+        
     <path
-        android:fillColor="?attr/colorPrimary"
-        android:pathData="M17,8L17,8c0.55,0 1,0.45 1,1v6c0,0.55 -0.45,1 -1,1h0c-0.55,0 -1,-0.45 -1,-1V9C16,8.45 16.45,8 17,8z"/>
+        android:pathData="m10.5 9.5v2"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+        
+    <path
+        android:pathData="m12.5 7.5v6.814"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+        
+    <path
+        android:pathData="m14.5 4.5v12"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="1.5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
 </vector> 

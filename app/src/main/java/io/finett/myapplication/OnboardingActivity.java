@@ -1,11 +1,16 @@
 package io.finett.myapplication;
 
+import android.Manifest;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.InputType;
+import android.util.Log;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
 
 import androidx.appcompat.app.AlertDialog;
@@ -16,42 +21,47 @@ import com.google.android.material.button.MaterialButton;
 import java.util.ArrayList;
 import java.util.List;
 
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 public class OnboardingActivity extends AppCompatActivity {
 
-    private static final String PREFS_NAME = "RoboPrefs";
+    private static final String PREFS_NAME = "AlanPrefs";
     private static final String KEY_FIRST_TIME = "isFirstTime";
     private static final String USER_INFO_PREFS = "UserInfoPrefs";
     private static final String USER_NAME_KEY = "user_name";
     private static final String API_PREFS = "ApiPrefs";
     private static final String API_KEY = "api_key";
+    private static final int NOTIFICATION_PERMISSION_CODE = 1;
+    private static final int RECORD_AUDIO_PERMISSION_CODE = 2;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        
-        // Проверяем, нужно ли показывать онбординг
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        if (!shouldShowOnboarding(prefs)) {
-            // Если пользователь уже видел онбординг, сразу переходим к главному экрану
-            startMainActivity();
-            return;
-        }
-        
         setContentView(R.layout.activity_onboarding);
-
-        MaterialButton startButton = findViewById(R.id.startButton);
-        startButton.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                // При нажатии на кнопку Начать, спрашиваем имя пользователя
+        
+        // Настраиваем список возможностей приложения
+        setupFeaturesList();
+        
+        // Настраиваем кнопку "Начать"
+        Button startButton = findViewById(R.id.startButton);
+        startButton.setOnClickListener(v -> {
+            // Если используем хардкодный ключ, не запрашиваем имя пользователя и API ключ
+            if (BuildConfig.USE_HARDCODED_KEY) {
+                // Автоматически регистрируем пользователя с дефолтным именем
+                SharedPreferences prefs = getSharedPreferences(USER_INFO_PREFS, MODE_PRIVATE);
+                prefs.edit().putString(USER_NAME_KEY, "Пользователь").apply();
+                
+                // Отмечаем, что онбординг показан и переходим к основному экрану
+                markOnboardingAsShown();
+                startMainActivity();
+            } else {
+                // Если не хардкодный ключ, запрашиваем имя пользователя
                 showUserNameDialog();
             }
         });
-
-        setupFeaturesList();
     }
 
     private void showUserNameDialog() {
@@ -78,7 +88,19 @@ public class OnboardingActivity extends AppCompatActivity {
         });
         
         builder.setCancelable(false);
-        builder.show();
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface dialogInterface) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
+            }
+        });
+        dialog.show();
+    }
+    
+    private void showApiKeyDialog() {
+        showApiKeyDialog("Пользователь");
     }
     
     private void showApiKeyDialog(final String userName) {
@@ -95,9 +117,19 @@ public class OnboardingActivity extends AppCompatActivity {
             public void onClick(DialogInterface dialog, int which) {
                 String apiKey = input.getText().toString().trim();
                 if (!apiKey.isEmpty()) {
-                    // Сохраняем API ключ
-                    SharedPreferences prefs = getSharedPreferences(API_PREFS, MODE_PRIVATE);
-                    prefs.edit().putString(API_KEY, apiKey).apply();
+                    // Сохраняем API ключ только если не используем хардкодный ключ из BuildConfig
+                    if (!BuildConfig.USE_HARDCODED_KEY) {
+                        SharedPreferences prefs = getSharedPreferences(API_PREFS, MODE_PRIVATE);
+                        prefs.edit().putString(API_KEY, apiKey).apply();
+                        
+                        // Также сохраняем в общем хранилище для совместимости
+                        SharedPreferences mainPrefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+                        mainPrefs.edit().putString(MainActivity.API_KEY_PREF, apiKey).apply();
+                        
+                        Log.d("OnboardingActivity", "Сохранен пользовательский API ключ");
+                    } else {
+                        Log.d("OnboardingActivity", "Используется встроенный API ключ OpenRouter из BuildConfig, пользовательский игнорируется");
+                    }
                     
                     // Сохраняем, что пользователь уже видел онбординг
                     markOnboardingAsShown();
@@ -108,8 +140,33 @@ public class OnboardingActivity extends AppCompatActivity {
             }
         });
         
+        // Если используем хардкодный ключ, добавляем возможность пропустить ввод ключа
+        if (BuildConfig.USE_HARDCODED_KEY) {
+            builder.setNeutralButton("Использовать встроенный ключ", new DialogInterface.OnClickListener() {
+                @Override
+                public void onClick(DialogInterface dialog, int which) {
+                    Log.d("OnboardingActivity", "Выбрано использование встроенного API ключа OpenRouter из BuildConfig");
+                    
+                    // Сохраняем, что пользователь уже видел онбординг
+                    markOnboardingAsShown();
+                    
+                    // Переходим в основное приложение
+                    startMainActivity();
+                }
+            });
+        }
+        
         builder.setCancelable(false);
-        builder.show();
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
+            @Override
+            public void onShow(DialogInterface dialogInterface) {
+                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
+                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(getResources().getColor(R.color.white));
+            }
+        });
+        dialog.show();
     }
 
     private void markOnboardingAsShown() {
@@ -117,10 +174,28 @@ public class OnboardingActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean(KEY_FIRST_TIME, false);
         editor.apply();
+        
+        // No need to request permissions here anymore as they're already handled in PermissionRequestActivity
+        // Just set up voice activation service if needed
+        SharedPreferences mainPrefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean hasRequiredPermissions = true;
+        
+        // Enable voice activation if permissions were granted
+        mainPrefs.edit().putBoolean("voice_activation_enabled", hasRequiredPermissions).apply();
+        
+        // Start the service if needed
+        if (hasRequiredPermissions) {
+            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        }
     }
 
     private void startMainActivity() {
-        Intent intent = new Intent(this, VoiceChatActivity.class);
+        Intent intent = new Intent(this, MainActivity.class);
         startActivity(intent);
         finish(); // Закрываем экран онбординга, чтобы пользователь не мог вернуться назад
     }
@@ -181,5 +256,23 @@ public class OnboardingActivity extends AppCompatActivity {
         RecyclerView featuresRecyclerView = findViewById(R.id.featuresRecyclerView);
         featuresRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         featuresRecyclerView.setAdapter(adapter);
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        // Check if voice activation was enabled before
+        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean isVoiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", false);
+        
+        if (isVoiceActivationEnabled) {
+            // Start the voice activation service
+            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent);
+            } else {
+                startService(serviceIntent);
+            }
+        }
     }
 } 

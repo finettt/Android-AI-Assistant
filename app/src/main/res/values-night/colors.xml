@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Override colors for dark theme -->
-    <color name="primary">@color/primary_dark_theme</color>
-    <color name="primary_dark">@color/primary_dark_dark_theme</color>
-    <color name="secondary">@color/secondary_dark_theme</color>
-    <color name="secondary_dark">@color/secondary_dark_dark_theme</color>
-    <color name="background">@color/background_dark_theme</color>
-    <color name="surface">@color/surface_dark_theme</color>
-    <color name="on_background">@color/on_background_dark_theme</color>
-    <color name="on_surface">@color/on_surface_dark_theme</color>
-    <color name="text_primary">@color/text_primary_dark_theme</color>
-    <color name="text_secondary">@color/text_secondary_dark_theme</color>
+    <!-- В ночной теме используем конкретные цвета вместо ссылок на другие цвета -->
+    <color name="primary">#121212</color>
+    <color name="primary_dark">#000000</color>
+    <color name="secondary">#757575</color>
+    <color name="secondary_dark">#424242</color>
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="on_background">#FFFFFF</color>
+    <color name="on_surface">#FFFFFF</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#E0E0E0</color>
     
     <!-- Цвета для сообщений в темной теме -->
-    <color name="message_user_background">@color/message_user_background_dark_theme</color>
-    <color name="message_ai_background">@color/message_ai_background_dark_theme</color>
-    <color name="message_user_text">@color/message_user_text_dark_theme</color>
-    <color name="message_ai_text">@color/message_ai_text_dark_theme</color>
+    <color name="message_user_background">#424242</color>
+    <color name="message_ai_background">#1E1E1E</color>
+    <color name="message_user_text">#FFFFFF</color>
+    <color name="message_ai_text">#FFFFFF</color>
 </resources> 

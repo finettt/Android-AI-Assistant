@@ -98,50 +98,96 @@
             android:layout_height="match_parent"
             android:orientation="vertical">
 
-            <com.google.android.material.button.MaterialButton
+            <Button
                 android:id="@+id/newChatButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:text="Новый чат"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"/>
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"
+                android:text="@string/app_name"
+                android:textColor="#FFFFFF"
+                app:layout_constraintTop_toTopOf="parent" />
+
+            <Button
+                android:id="@+id/voiceChatButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="24dp"
+                android:layout_marginEnd="24dp"
+                android:text="@string/voice_input"
+                android:textColor="#FFFFFF"
+                app:layout_constraintTop_toBottomOf="@id/newChatButton" />
+
+            <TextView
+                android:id="@+id/recentChatsTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginTop="32dp"
+                android:text="Недавние чаты"
+                android:textColor="#FFFFFF"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/accessibilitySettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:drawableStart="@drawable/ic_accessibility"
+                android:text="Настройки доступности"
+                android:textAlignment="textStart"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/voiceActivationButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:drawableStart="@drawable/ic_mic"
+                android:text="Включить голосовую активацию"
+                android:textAlignment="textStart"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/toggleThemeButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:drawableStart="@drawable/ic_contrast"
+                android:text="@string/toggle_contrast"
+                android:textAlignment="textStart"
+                android:textColor="#FFFFFF" />
+
+            <Button
+                android:id="@+id/chatSettingsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="16dp"
+                android:drawableStart="@drawable/ic_settings"
+                android:text="Настройки чата"
+                android:textAlignment="textStart"
+                android:textColor="#FFFFFF" />
+
+            <View
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="?android:attr/listDivider"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="8dp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/chatsRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1"
-                android:padding="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/voiceChatButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:text="Голосовой чат"
-                android:drawableStart="@drawable/ic_mic"
-                android:drawablePadding="8dp"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/accessibilitySettingsButton"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:text="Настройки доступности"
-                android:drawableStart="@drawable/ic_accessibility"
-                android:drawablePadding="8dp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/toggleThemeButton"
-                style="@style/Widget.MaterialComponents.Button.OutlinedButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_margin="16dp"
-                android:text="@string/toggle_contrast"
-                android:drawableStart="@drawable/ic_contrast"
-                android:drawablePadding="8dp" />
+                android:padding="8dp"
+                android:clipToPadding="false"
+                android:scrollbars="vertical" />
 
         </LinearLayout>
 

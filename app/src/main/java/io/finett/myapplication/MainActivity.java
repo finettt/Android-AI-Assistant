@@ -14,6 +14,8 @@ import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
@@ -47,6 +49,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import io.finett.myapplication.adapter.ChatAdapter;
 import io.finett.myapplication.adapter.ChatsAdapter;
@@ -60,10 +64,13 @@ import io.finett.myapplication.util.ImageUtil;
 import io.finett.myapplication.util.StorageUtil;
 import io.finett.myapplication.util.UserManager;
 import io.finett.myapplication.util.AccessibilityManager;
+import io.finett.myapplication.service.WeatherService;
+import io.finett.myapplication.model.WeatherData;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 import io.finett.myapplication.base.BaseAccessibilityActivity;
+import com.google.gson.Gson;
 
 public class MainActivity extends BaseAccessibilityActivity implements 
         ChatsAdapter.OnChatClickListener, 
@@ -81,19 +88,21 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private static final int PERMISSION_REQUEST_CODE = 123;
     private static final int VOICE_ACTIVATION_PERMISSION_CODE = 124;
     private List<AIModel> availableModels = Arrays.asList(
-        new AIModel("minimax/minimax-01", "MiniMax-01", "Мощная модель для голосового помощника"),
-        new AIModel("anthropic/claude-3-opus", "Claude 3 Opus", "Самая мощная модель Claude"),
-        new AIModel("anthropic/claude-3-sonnet", "Claude 3 Sonnet", "Быстрая и эффективная модель Claude"),
-        new AIModel("anthropic/claude-3-haiku", "Claude 3 Haiku", "Компактная модель Claude"),
-        new AIModel("mistralai/mixtral-8x7b", "Mixtral 8x7B", "Мощная открытая модель"),
-        new AIModel("mistralai/mistral-medium", "Mistral Medium", "Сбалансированная модель"),
-        new AIModel("meta-llama/llama-2-70b-chat", "Llama 2 70B", "Большая модель с высокой точностью"),
-        new AIModel("google/gemma-7b-it", "Gemma 7B", "Новая модель от Google")
+            new AIModel("Claude 3 Haiku", "anthropic/claude-3-haiku-20240307", false),
+            new AIModel("Claude 3 Sonnet", "anthropic/claude-3-sonnet-20240229", false),
+            new AIModel("Gemini Pro", "google/gemini-pro", true),
+            new AIModel("Qwen 2 7B", "qwen/qwen2-7b", false),
+            new AIModel("Qwen 3 235B", "qwen/qwen3-235b-a22b:free", true),
+            new AIModel("Mistral 7B", "mistralai/mistral-7b-instruct-v0.1", false),
+            new AIModel("Mixtral 8x7B", "mistralai/mixtral-8x7b-instruct-v0.1", false),
+            new AIModel("LLaMA 2 13B", "meta-llama/llama-2-13b-chat", false),
+            new AIModel("LLaMA 2 70B", "meta-llama/llama-2-70b-chat", false)
     );
     private List<Chat> chats = new ArrayList<>();
     private UserManager userManager;
     private AccessibilityManager accessibilityManager;
     private BroadcastReceiver settingsReceiver;
+    private WeatherService weatherService;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -140,21 +149,27 @@ public class MainActivity extends BaseAccessibilityActivity implements
         setupAccessibilityButtons();
         setupVoiceActivationButton();
         
-        // Проверяем наличие API ключа
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        apiKey = prefs.getString(API_KEY_PREF, null);
+        // Получаем API ключ с учетом настройки BUILD_CONFIG
+        apiKey = getApiKey();
         
-        if (apiKey == null) {
+        // Запрашиваем API ключ только если он не задан и не используется хардкодный ключ
+        if (apiKey == null && !BuildConfig.USE_HARDCODED_KEY) {
             showApiKeyDialog();
         }
 
-        // Показываем диалог регистрации, если нужно
+        // Проверяем, зарегистрирован ли пользователь, если нет - регистрируем с дефолтным именем
         if (!userManager.isRegistered()) {
-            showRegistrationDialog();
+            // Регистрируем пользователя автоматически с дефолтным именем
+            userManager.registerUser("Пользователь");
         }
 
         // Применяем текущие настройки доступности
         applyAccessibilitySettings();
+
+        weatherService = new WeatherService(this);
+        
+        // Check for wake phrase intent
+        handleIntent(getIntent());
     }
 
     private boolean checkRequiredPermissions() {
@@ -279,7 +294,13 @@ public class MainActivity extends BaseAccessibilityActivity implements
         });
 
         builder.setNegativeButton("Отмена", null);
-        builder.show();
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
+        });
+        dialog.show();
     }
 
     private void createNewChat(String title, String modelId) {
@@ -327,7 +348,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
         inputLayout.addView(input);
         inputLayout.setPadding(32, 16, 32, 0);
 
-        new MaterialAlertDialogBuilder(this)
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
                 .setTitle("API Ключ")
                 .setMessage("Пожалуйста, введите ваш API ключ OpenRouter")
                 .setView(inputLayout)
@@ -339,14 +360,24 @@ public class MainActivity extends BaseAccessibilityActivity implements
                     } else {
                         showApiKeyDialog();
                     }
-                })
-                .show();
+                });
+                
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
+            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(getResources().getColor(R.color.white));
+        });
+        dialog.show();
     }
 
     private void saveApiKey(String key) {
-        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-        editor.putString(API_KEY_PREF, key);
-        editor.apply();
+        // Сохраняем ключ только если не используем хардкодный ключ из BuildConfig
+        if (!BuildConfig.USE_HARDCODED_KEY) {
+            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
+            editor.putString(API_KEY_PREF, key);
+            editor.apply();
+        }
         apiKey = key;
     }
 
@@ -362,10 +393,13 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private void setupApi() {
-        openRouterApi = ApiClient.getClient().create(OpenRouterApi.class);
+        openRouterApi = ApiClient.getOpenRouterClient().create(OpenRouterApi.class);
     }
 
     private void sendMessage() {
+        // Обновляем apiKey перед отправкой, чтобы учесть возможное изменение настроек
+        apiKey = getApiKey();
+        
         if (apiKey == null) {
             showError("API ключ не установлен");
             showApiKeyDialog();
@@ -381,6 +415,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
         String message = binding.messageInput.getText().toString().trim();
         if (message.isEmpty()) return;
 
+        // Добавляем сообщение пользователя в чат
         ChatMessage userMessage = new ChatMessage(message, true);
         chatAdapter.addMessage(userMessage);
         currentChat.addMessage(userMessage);
@@ -388,6 +423,12 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         // Показываем индикатор загрузки
         chatAdapter.setLoading(true);
+        
+        // Проверяем, является ли сообщение запросом о погоде
+        if (isWeatherRequest(message)) {
+            processWeatherRequest(message);
+            return;
+        }
 
         // Создаем запрос к API
         Map<String, Object> body = new HashMap<>();
@@ -428,25 +469,78 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 
                 if (response.isSuccessful() && response.body() != null) {
                     try {
-                        ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
+                        Log.d("MainActivity", "Response body: " + new Gson().toJson(response.body()));
+                        Map<String, Object> responseBody = response.body();
+                        ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
+                        
                         if (choices != null && !choices.isEmpty()) {
                             Map<String, Object> choice = choices.get(0);
-                            Map<String, String> message = (Map<String, String>) choice.get("message");
-                            if (message != null && message.containsKey("content")) {
-                                String content = message.get("content");
-                                ChatMessage botMessage = new ChatMessage(content, false);
-                                runOnUiThread(() -> {
-                                    chatAdapter.addMessage(botMessage);
-                                    currentChat.addMessage(botMessage);
-                                    saveChats();
-                                });
+                            if (choice.containsKey("message")) {
+                                Object messageObj = choice.get("message");
+                                String content = null;
+                                
+                                // Handle different message format types
+                                if (messageObj instanceof Map) {
+                                    Map<String, Object> message = (Map<String, Object>) messageObj;
+                                    
+                                    // Try to get content from different formats
+                                    if (message.containsKey("content")) {
+                                        Object contentObj = message.get("content");
+                                        
+                                        if (contentObj instanceof String) {
+                                            // Simple string content
+                                            content = (String) contentObj;
+                                        } else if (contentObj instanceof ArrayList) {
+                                            // Content as array of objects with text fields
+                                            ArrayList<Map<String, Object>> contentList = (ArrayList<Map<String, Object>>) contentObj;
+                                            StringBuilder sb = new StringBuilder();
+                                            
+                                            for (Map<String, Object> contentItem : contentList) {
+                                                if (contentItem.containsKey("type") && contentItem.get("type").equals("text") 
+                                                    && contentItem.containsKey("text")) {
+                                                    sb.append(contentItem.get("text").toString());
+                                                }
+                                            }
+                                            
+                                            content = sb.toString();
+                                        }
+                                    }
+                                }
+                                
+                                if (content != null && !content.isEmpty()) {
+                                    ChatMessage botMessage = new ChatMessage(content, false);
+                                    runOnUiThread(() -> {
+                                        chatAdapter.addMessage(botMessage);
+                                        currentChat.addMessage(botMessage);
+                                        saveChats();
+                                    });
+                                } else {
+                                    showError("Не удалось извлечь текст из ответа сервера");
+                                }
+                            } else if (choice.containsKey("delta")) {
+                                // Handle streaming response format
+                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
+                                if (delta.containsKey("content")) {
+                                    String content = (String) delta.get("content");
+                                    if (content != null && !content.isEmpty()) {
+                                        ChatMessage botMessage = new ChatMessage(content, false);
+                                        runOnUiThread(() -> {
+                                            chatAdapter.addMessage(botMessage);
+                                            currentChat.addMessage(botMessage);
+                                            saveChats();
+                                        });
+                                    }
+                                } else {
+                                    showError("В ответе отсутствует содержимое");
+                                }
                             } else {
-                                showError("Некорректный формат ответа от сервера");
+                                showError("Некорректный формат ответа от сервера (отсутствует message или delta)");
                             }
                         } else {
-                            showError("Пустой ответ от сервера");
+                            showError("Пустой ответ от сервера (отсутствуют choices)");
                         }
                     } catch (Exception e) {
+                        Log.e("MainActivity", "Ошибка при обработке ответа: " + e.getMessage(), e);
                         showError("Ошибка при обработке ответа: " + e.getMessage());
                     }
                 } else {
@@ -475,6 +569,90 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 runOnUiThread(() -> chatAdapter.setLoading(false));
                 showError("Ошибка сети");
             }
+        });
+    }
+
+    private boolean isWeatherRequest(String message) {
+        message = message.toLowerCase();
+        return (message.contains("погода") || message.contains("температура") || message.contains("weather")) &&
+               (message.contains("какая") || message.contains("какой") || message.contains("узнай") || 
+                message.contains("скажи") || message.contains("покажи") || message.contains("what"));
+    }
+    
+    private void processWeatherRequest(String message) {
+        // Извлекаем город из запроса, если он указан
+        String city = extractCityFromMessage(message);
+        
+        if (city != null) {
+            // Если город указан явно, используем его
+            weatherService.getCurrentWeather(city, new WeatherService.WeatherCallback() {
+                @Override
+                public void onWeatherDataReceived(WeatherData weatherData) {
+                    String weatherResponse = weatherService.formatWeatherResponse(weatherData);
+                    addBotResponseMessage(weatherResponse);
+                }
+
+                @Override
+                public void onWeatherError(String errorMessage) {
+                    addBotResponseMessage("Не удалось получить данные о погоде: " + errorMessage);
+                }
+            });
+        } else {
+            // Если город не указан, используем город по умолчанию
+            weatherService.getCurrentWeather(new WeatherService.WeatherCallback() {
+                @Override
+                public void onWeatherDataReceived(WeatherData weatherData) {
+                    String weatherResponse = weatherService.formatWeatherResponse(weatherData);
+                    addBotResponseMessage(weatherResponse);
+                }
+
+                @Override
+                public void onWeatherError(String errorMessage) {
+                    addBotResponseMessage("Не удалось получить данные о погоде: " + errorMessage);
+                }
+            });
+        }
+    }
+    
+    private String extractCityFromMessage(String message) {
+        message = message.toLowerCase();
+        
+        // Паттерны для определения города
+        String[] patterns = {
+            "в городе ([\\wа-яА-Я\\-]+)",
+            "в ([\\wа-яА-Я\\-]+)",
+            "город ([\\wа-яА-Я\\-]+)",
+            "для ([\\wа-яА-Я\\-]+)",
+            "погода ([\\wа-яА-Я\\-]+)",
+            "([\\wа-яА-Я\\-]+) погода"
+        };
+        
+        for (String pattern : patterns) {
+            Pattern p = Pattern.compile(pattern);
+            Matcher m = p.matcher(message);
+            if (m.find()) {
+                String city = m.group(1);
+                // Убираем предлоги, если они попали в название города
+                String[] prepositions = {"в", "на", "для", "о", "об", "про"};
+                for (String prep : prepositions) {
+                    if (city.startsWith(prep + " ")) {
+                        city = city.substring(prep.length() + 1);
+                    }
+                }
+                return city;
+            }
+        }
+        
+        return null;
+    }
+    
+    private void addBotResponseMessage(String text) {
+        ChatMessage botMessage = new ChatMessage(text, false);
+        runOnUiThread(() -> {
+            chatAdapter.setLoading(false);
+            chatAdapter.addMessage(botMessage);
+            currentChat.addMessage(botMessage);
+            saveChats();
         });
     }
 
@@ -706,25 +884,78 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 
                 if (response.isSuccessful() && response.body() != null) {
                     try {
-                        ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) response.body().get("choices");
+                        Log.d("MainActivity", "Response body: " + new Gson().toJson(response.body()));
+                        Map<String, Object> responseBody = response.body();
+                        ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
+                        
                         if (choices != null && !choices.isEmpty()) {
                             Map<String, Object> choice = choices.get(0);
-                            Map<String, String> message = (Map<String, String>) choice.get("message");
-                            if (message != null && message.containsKey("content")) {
-                                String content = message.get("content");
-                                ChatMessage botMessage = new ChatMessage(content, false);
-                                runOnUiThread(() -> {
-                                    chatAdapter.addMessage(botMessage);
-                                    currentChat.addMessage(botMessage);
-                                    saveChats();
-                                });
+                            if (choice.containsKey("message")) {
+                                Object messageObj = choice.get("message");
+                                String content = null;
+                                
+                                // Handle different message format types
+                                if (messageObj instanceof Map) {
+                                    Map<String, Object> message = (Map<String, Object>) messageObj;
+                                    
+                                    // Try to get content from different formats
+                                    if (message.containsKey("content")) {
+                                        Object contentObj = message.get("content");
+                                        
+                                        if (contentObj instanceof String) {
+                                            // Simple string content
+                                            content = (String) contentObj;
+                                        } else if (contentObj instanceof ArrayList) {
+                                            // Content as array of objects with text fields
+                                            ArrayList<Map<String, Object>> contentList = (ArrayList<Map<String, Object>>) contentObj;
+                                            StringBuilder sb = new StringBuilder();
+                                            
+                                            for (Map<String, Object> contentItem : contentList) {
+                                                if (contentItem.containsKey("type") && contentItem.get("type").equals("text") 
+                                                    && contentItem.containsKey("text")) {
+                                                    sb.append(contentItem.get("text").toString());
+                                                }
+                                            }
+                                            
+                                            content = sb.toString();
+                                        }
+                                    }
+                                }
+                                
+                                if (content != null && !content.isEmpty()) {
+                                    ChatMessage botMessage = new ChatMessage(content, false);
+                                    runOnUiThread(() -> {
+                                        chatAdapter.addMessage(botMessage);
+                                        currentChat.addMessage(botMessage);
+                                        saveChats();
+                                    });
+                                } else {
+                                    showError("Не удалось извлечь текст из ответа сервера");
+                                }
+                            } else if (choice.containsKey("delta")) {
+                                // Handle streaming response format
+                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
+                                if (delta.containsKey("content")) {
+                                    String content = (String) delta.get("content");
+                                    if (content != null && !content.isEmpty()) {
+                                        ChatMessage botMessage = new ChatMessage(content, false);
+                                        runOnUiThread(() -> {
+                                            chatAdapter.addMessage(botMessage);
+                                            currentChat.addMessage(botMessage);
+                                            saveChats();
+                                        });
+                                    }
+                                } else {
+                                    showError("В ответе отсутствует содержимое");
+                                }
                             } else {
-                                showError("Некорректный формат ответа от сервера");
+                                showError("Некорректный формат ответа от сервера (отсутствует message или delta)");
                             }
                         } else {
-                            showError("Пустой ответ от сервера");
+                            showError("Пустой ответ от сервера (отсутствуют choices)");
                         }
                     } catch (Exception e) {
+                        Log.e("MainActivity", "Ошибка при обработке ответа: " + e.getMessage(), e);
                         showError("Ошибка при обработке ответа: " + e.getMessage());
                     }
                 } else {
@@ -1036,6 +1267,92 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         builder.setNegativeButton("Отмена", null);
         
-        builder.show();
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
+        });
+        dialog.show();
+    }
+
+    @Override
+    public boolean onCreateOptionsMenu(Menu menu) {
+        getMenuInflater().inflate(R.menu.main_menu, menu);
+        return true;
+    }
+    
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        int id = item.getItemId();
+        
+        if (id == R.id.action_weather_settings) {
+            Intent intent = new Intent(this, WeatherSettingsActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (id == R.id.action_voice_activation_settings) {
+            Intent intent = new Intent(this, VoiceActivationSettingsActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (id == R.id.action_chat_settings) {
+            showChatSettingsDialog();
+            return true;
+        } else if (id == R.id.action_accessibility_settings) {
+            Intent intent = new Intent(this, AccessibilitySettingsActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (id == R.id.action_about_me) {
+            Intent intent = new Intent(this, AboutMeActivity.class);
+            startActivity(intent);
+            return true;
+        }
+        
+        return super.onOptionsItemSelected(item);
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Handle wake phrase intents
+        handleIntent(intent);
+    }
+
+    private void handleIntent(Intent intent) {
+        if (intent != null) {
+            boolean fromWakePhrase = intent.getBooleanExtra("FROM_WAKE_PHRASE", false);
+            if (fromWakePhrase) {
+                Log.d("MainActivity", "Started from wake phrase");
+                
+                // Make sure the activity is brought to the front
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    setShowWhenLocked(true);
+                    setTurnScreenOn(true);
+                }
+                
+                // Optionally, could start voice input or perform other actions
+            }
+        }
+    }
+
+    /**
+     * Получение API ключа с учетом настроек сборки
+     */
+    private String getApiKey() {
+        // Проверяем флаг, использовать ли хардкод ключ из BuildConfig
+        if (BuildConfig.USE_HARDCODED_KEY) {
+            Log.d("MainActivity", "Используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
+        
+        // Получаем сохраненный пользовательский ключ
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String apiKey = prefs.getString(API_KEY_PREF, null);
+        
+        // Если API ключ не установлен и используем ключ по умолчанию
+        if (apiKey == null || apiKey.isEmpty()) {
+            Log.w("MainActivity", "Пользовательский ключ не установлен, используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
+        
+        return apiKey;
     }
 }

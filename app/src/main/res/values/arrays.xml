@@ -15,4 +15,26 @@
         <item>large</item>
         <item>very_large</item>
     </string-array>
+
+    <string-array name="weather_units_entries">
+        <item>Метрическая (°C)</item>
+        <item>Имперская (°F)</item>
+    </string-array>
+    
+    <string-array name="weather_units_values">
+        <item>metric</item>
+        <item>imperial</item>
+    </string-array>
+
+    <string-array name="weather_api_provider_entries">
+        <item>Open-Meteo (Без API ключа)</item>
+        <item>OpenWeatherMap</item>
+        <item>Weatherbit</item>
+    </string-array>
+    
+    <string-array name="weather_api_provider_values">
+        <item>openmeteo</item>
+        <item>openweathermap</item>
+        <item>weatherbit</item>
+    </string-array>
 </resources> 

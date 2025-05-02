@@ -4,17 +4,19 @@
     <color name="white">#FFFFFFFF</color>
     <color name="black">#000000</color>
 
-    <!-- Normal theme colors -->
-    <color name="primary">#6200EE</color>
-    <color name="primary_dark">#3700B3</color>
-    <color name="secondary">#FF03DAC5</color>
-    <color name="secondary_dark">#BB86FC</color>
-    <color name="background">#F7F2FA</color>
-    <color name="surface">#FFFFFF</color>
-    <color name="on_background">#1E1E1E</color>
-    <color name="on_surface">#1E1E1E</color>
-    <color name="text_primary">#1E1E1E</color>
-    <color name="text_secondary">#616161</color>
+    <!-- Алан тема - обновленные цвета -->
+    <color name="primary">#121212</color>
+    <color name="primary_dark">#000000</color>
+    <color name="secondary">#757575</color>
+    <color name="secondary_dark">#424242</color>
+    <color name="accent">#9E9E9E</color>
+    <color name="background">#121212</color>
+    <color name="surface">#1E1E1E</color>
+    <color name="on_background">#FFFFFF</color>
+    <color name="on_surface">#FFFFFF</color>
+    <color name="text_primary">#FFFFFF</color>
+    <color name="text_secondary">#E0E0E0</color>
+    <color name="divider">#424242</color>
 
     <!-- High contrast theme colors -->
     <color name="primary_high_contrast">#FFFF00</color>
@@ -30,34 +32,40 @@
     <color name="high_contrast_accent">#00FF00</color>
 
     <!-- Common colors -->
-    <color name="background_normal">#FFFFFF</color>
-    <color name="text_normal">#000000</color>
+    <color name="background_normal">#121212</color>
+    <color name="text_normal">#FFFFFF</color>
     
     <!-- Цвета для сообщений -->
-    <color name="message_user_background">#E3F2FD</color>
-    <color name="message_ai_background">#F1F1F1</color>
-    <color name="message_user_text">#000000</color>
-    <color name="message_ai_text">#000000</color>
-    <color name="user_message_background">#E3F2FD</color>
-    <color name="assistant_message_background">#F1F1F1</color>
+    <color name="message_user_background">#424242</color>
+    <color name="message_ai_background">#1E1E1E</color>
+    <color name="message_user_text">#FFFFFF</color>
+    <color name="message_ai_text">#FFFFFF</color>
+    <color name="user_message_background">#424242</color>
+    <color name="assistant_message_background">#1E1E1E</color>
     
     <!-- Цвета для высокого контраста -->
     <color name="high_contrast_user_message">#FFFF00</color>
     <color name="high_contrast_ai_message">#FFFFFF</color>
     
-    <!-- Dark theme colors -->
-    <color name="primary_dark_theme">#BB86FC</color>
-    <color name="primary_dark_dark_theme">#9D4EDD</color>
-    <color name="secondary_dark_theme">#03DAC6</color>
-    <color name="secondary_dark_dark_theme">#018786</color>
-    <color name="background_dark_theme">#121212</color>
-    <color name="surface_dark_theme">#1F1F1F</color>
-    <color name="on_background_dark_theme">#E6E6E6</color>
-    <color name="on_surface_dark_theme">#E6E6E6</color>
-    <color name="text_primary_dark_theme">#E6E6E6</color>
-    <color name="text_secondary_dark_theme">#B0B0B0</color>
-    <color name="message_user_background_dark_theme">#311B92</color>
-    <color name="message_ai_background_dark_theme">#1F1F1F</color>
-    <color name="message_user_text_dark_theme">#D1C4E9</color>
-    <color name="message_ai_text_dark_theme">#D1C4E9</color>
+    <!-- Цвета статуса -->
+    <color name="active_color">#9E9E9E</color>
+    <color name="inactive_color">#616161</color>
+    
+    <!-- Legacy colors для обратной совместимости -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+
+    <color name="status_bar_translucent">#80000000</color>
+    <color name="navigation_bar_translucent">#80000000</color>
+
+    <!-- Dark Theme Colors -->
+    <color name="background_dark">#121212</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="on_background_dark">#FFFFFF</color>
+    <color name="on_surface_dark">#FFFFFF</color>
+    <color name="text_primary_dark">#FFFFFF</color>
+    <color name="text_secondary_dark">#B3FFFFFF</color>
 </resources>

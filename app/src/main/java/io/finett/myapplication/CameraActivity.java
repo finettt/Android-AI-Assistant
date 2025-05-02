@@ -9,6 +9,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.View;
 import android.widget.Toast;
 
@@ -62,9 +63,8 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_camera);
 
-        apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
-                .getString(MainActivity.API_KEY_PREF, null);
-        openRouterApi = ApiClient.getClient().create(OpenRouterApi.class);
+        apiKey = getApiKey();
+        openRouterApi = ApiClient.getOpenRouterClient().create(OpenRouterApi.class);
         textToSpeech = new TextToSpeech(this, this);
         handler = new Handler(Looper.getMainLooper());
 
@@ -191,6 +191,9 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
     }
 
     private void analyzeImage(String base64Image) {
+        // Обновляем apiKey перед отправкой, чтобы учесть возможное изменение настроек
+        apiKey = getApiKey();
+        
         Map<String, Object> body = new HashMap<>();
         body.put("model", MODEL_ID);
 
@@ -343,5 +346,28 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
         if (handler != null) {
             handler.removeCallbacksAndMessages(null);
         }
+    }
+
+    /**
+     * Получение API ключа с учетом настроек сборки
+     */
+    private String getApiKey() {
+        // Проверяем флаг, использовать ли хардкод ключ из BuildConfig
+        if (BuildConfig.USE_HARDCODED_KEY) {
+            Log.d("CameraActivity", "Используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
+        
+        // Получаем сохраненный пользовательский ключ
+        String apiKey = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE)
+                .getString(MainActivity.API_KEY_PREF, null);
+        
+        // Если API ключ не установлен, используем ключ по умолчанию
+        if (apiKey == null || apiKey.isEmpty()) {
+            Log.w("CameraActivity", "Пользовательский ключ не установлен, используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
+        
+        return apiKey;
     }
 } 

@@ -18,7 +18,11 @@ public class ChatMessage {
     }
 
     public ChatMessage(String text, boolean isUserMessage) {
-        this.text = text;
+        if (isUserMessage && text != null && !text.isEmpty()) {
+            this.text = Character.toUpperCase(text.charAt(0)) + text.substring(1);
+        } else {
+            this.text = text;
+        }
         this.isUserMessage = isUserMessage;
         this.timestamp = new Date().getTime();
         this.attachmentType = AttachmentType.NONE;
@@ -36,7 +40,11 @@ public class ChatMessage {
     }
 
     public void setText(String text) {
-        this.text = text;
+        if (isUserMessage && text != null && !text.isEmpty()) {
+            this.text = Character.toUpperCase(text.charAt(0)) + text.substring(1);
+        } else {
+            this.text = text;
+        }
         this.isEdited = true;
     }
 

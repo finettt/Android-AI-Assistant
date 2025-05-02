@@ -4,11 +4,19 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.os.Build;
 import android.os.Bundle;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.view.WindowManager;
 import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import io.finett.myapplication.R;
 import io.finett.myapplication.util.AccessibilityManager;
 
@@ -21,6 +29,19 @@ public abstract class BaseAccessibilityActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         accessibilityManager = new AccessibilityManager(this, null);
         setupSettingsReceiver();
+        setupEdgeToEdge();
+    }
+
+    /**
+     * Настраивает edge-to-edge отображение (контент отображается под системными панелями)
+     */
+    private void setupEdgeToEdge() {
+        // Отключаем edge-to-edge режим, возвращаемся к обычному отображению
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), true);
+        
+        // Возвращаем обычные цвета для системных панелей
+        getWindow().setStatusBarColor(getResources().getColor(R.color.primary_dark, getTheme()));
+        getWindow().setNavigationBarColor(getResources().getColor(R.color.primary_dark, getTheme()));
     }
 
     private void setupSettingsReceiver() {
