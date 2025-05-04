@@ -51,18 +51,23 @@
     <!-- Стили для кнопок -->
     <style name="AlanButton" parent="Widget.MaterialComponents.Button">
         <item name="android:textColor">@color/white</item>
-        <item name="backgroundTint">@color/secondary</item>
+        <item name="backgroundTint">@color/accent</item>
+        <item name="strokeColor">@color/white</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 
     <style name="AlanButtonOutlined" parent="Widget.MaterialComponents.Button.OutlinedButton">
         <item name="android:textColor">@color/text_primary</item>
-        <item name="rippleColor">@color/secondary</item>
-        <item name="strokeColor">@color/secondary</item>
+        <item name="rippleColor">@color/accent</item>
+        <item name="strokeColor">@color/accent</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 
     <style name="AlanFab" parent="Widget.MaterialComponents.FloatingActionButton">
-        <item name="backgroundTint">@color/secondary</item>
+        <item name="backgroundTint">@color/accent</item>
         <item name="tint">@color/white</item>
+        <item name="borderWidth">1dp</item>
+        <item name="strokeColor">@color/white</item>
     </style>
 
     <!-- Стили для поддержки старых компонентов Android -->
@@ -79,5 +84,70 @@
 
     <style name="DialogButtonStyle" parent="Widget.AppCompat.Button.ButtonBar.AlertDialog">
         <item name="android:textColor">@color/white</item>
+    </style>
+    
+    <!-- Стили для кнопок с белой окантовкой в темной теме -->
+    <style name="WhiteBorderedButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:background">@drawable/button_border_white</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="android:padding">12dp</item>
+        <item name="backgroundTint">@color/accent</item>
+    </style>
+    
+    <style name="WhiteBorderedTextButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:background">@drawable/button_border_white</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="rippleColor">@color/accent</item>
+    </style>
+    
+    <style name="WhiteBorderedOutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeColor">@color/white</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/white</item>
+        <item name="rippleColor">@color/accent</item>
+    </style>
+
+    <!-- Стиль для текстовых кнопок и кнопок с контуром в светлой теме -->
+    <style name="Alan.Button.Text.Light" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/primary_light</item>
+        <item name="rippleColor">@color/primary_light</item>
+    </style>
+
+    <style name="Alan.Button.Outlined.Light" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="strokeColor">@color/primary_light</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="android:textColor">@color/primary_light</item>
+        <item name="rippleColor">@color/primary_light</item>
+    </style>
+
+    <!-- Стили для полей ввода в светлой теме -->
+    <style name="Alan.TextInputLayout.Light" parent="Widget.MaterialComponents.TextInputLayout.FilledBox">
+        <item name="boxStrokeColor">@color/primary_light</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="endIconTint">@color/primary_light</item>
+        <item name="startIconTint">@color/primary_light</item>
+    </style>
+
+    <style name="Alan.TextInputLayout.OutlinedBox.Light" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/primary_light</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="endIconTint">@color/primary_light</item>
+        <item name="startIconTint">@color/primary_light</item>
+    </style>
+
+    <style name="Alan.EditText.Light" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">@color/text_primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="android:backgroundTint">@color/primary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
     </style>
 </resources> 

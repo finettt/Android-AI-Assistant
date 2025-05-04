@@ -21,6 +21,16 @@
         android:title="Визуальные настройки"
         app:iconSpaceReserved="false">
 
+        <ListPreference
+            android:defaultValue="dark"
+            android:entries="@array/theme_entries"
+            android:entryValues="@array/theme_values"
+            android:key="app_theme"
+            android:title="Тема приложения"
+            android:summary="Выбор темы оформления приложения"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+
         <SwitchPreferenceCompat
             android:defaultValue="false"
             android:key="high_contrast"

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Состояние ошибки (заменено на проверку фокуса и цвет ошибки) -->
+    <item android:color="@color/control_error" android:state_enabled="true" android:state_focused="true"/>
+    
+    <!-- Состояние фокуса -->
+    <item android:color="@color/control_activated" android:state_enabled="true" android:state_focused="true"/>
+    <item android:color="@color/control_activated" android:state_enabled="true" android:state_checked="true"/>
+    <item android:color="@color/control_activated" android:state_enabled="true" android:state_activated="true"/>
+    
+    <!-- Обычное состояние -->
+    <item android:color="@color/control_normal" android:state_enabled="true"/>
+    
+    <!-- Неактивное состояние -->
+    <item android:color="@color/control_normal" android:alpha="0.4"/>
+</selector> 

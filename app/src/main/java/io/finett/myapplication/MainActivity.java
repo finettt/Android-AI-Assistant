@@ -91,12 +91,12 @@ public class MainActivity extends BaseAccessibilityActivity implements
             new AIModel("Claude 3 Haiku", "anthropic/claude-3-haiku-20240307", false),
             new AIModel("Claude 3 Sonnet", "anthropic/claude-3-sonnet-20240229", false),
             new AIModel("Gemini Pro", "google/gemini-pro", true),
-            new AIModel("Qwen 2 7B", "qwen/qwen2-7b", false),
+            new AIModel("Qwen2.5 VL 32B Instruct", "qwen/qwen2.5-vl-32b-instruct:free", false),
             new AIModel("Qwen 3 235B", "qwen/qwen3-235b-a22b:free", true),
             new AIModel("Mistral 7B", "mistralai/mistral-7b-instruct-v0.1", false),
             new AIModel("Mixtral 8x7B", "mistralai/mixtral-8x7b-instruct-v0.1", false),
-            new AIModel("LLaMA 2 13B", "meta-llama/llama-2-13b-chat", false),
-            new AIModel("LLaMA 2 70B", "meta-llama/llama-2-70b-chat", false)
+            new AIModel("QwQ 32B RpR v1", "arliai/qwq-32b-arliai-rpr-v1:free", false),
+            new AIModel("Phi 4 Reasoning", "microsoft/phi-4-reasoning:free", false)
     );
     private List<Chat> chats = new ArrayList<>();
     private UserManager userManager;
@@ -173,7 +173,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private boolean checkRequiredPermissions() {
-        // Check for critical permissions (microphone, camera, etc.)
+        // Проверяем только критические разрешения, которые абсолютно необходимы
+        // для минимальной работы приложения. Остальные будут запрошены на 
+        // экране разрешений PermissionRequestActivity
         String[] criticalPermissions = {
             Manifest.permission.RECORD_AUDIO,
             Manifest.permission.CAMERA
@@ -684,9 +686,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private void checkCameraPermissionAndLaunch() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.CAMERA},
-                    PERMISSION_REQUEST_CODE);
+            // Вместо запроса разрешения напрямую, перенаправляем на экран разрешений
+            startActivity(new Intent(this, PermissionRequestActivity.class));
         } else {
             launchCamera();
         }
@@ -700,7 +701,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 launchCamera();
             } else {
-                showError("Необходимо разрешение на использование камеры");
+                // Перенаправляем на экран разрешений, так как пользователь отказал в разрешении
+                startActivity(new Intent(this, PermissionRequestActivity.class));
             }
         } else if (requestCode == VOICE_ACTIVATION_PERMISSION_CODE) {
             boolean allPermissionsGranted = true;
@@ -721,10 +723,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 // Включаем голосовую активацию
                 startVoiceActivationService();
             } else {
-                // Показываем сообщение о необходимости разрешения
-                Toast.makeText(this, 
-                        "Для голосовой активации необходимо разрешение на использование микрофона", 
-                        Toast.LENGTH_LONG).show();
+                // Перенаправляем на экран разрешений
+                startActivity(new Intent(this, PermissionRequestActivity.class));
                 
                 // Отключаем настройку голосовой активации
                 SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
@@ -1093,21 +1093,78 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private void setupAccessibilityButtons() {
         // Настраиваем кнопку переключения темы
         binding.toggleThemeButton.setOnClickListener(v -> {
-            toggleHighContrastTheme();
+            showThemeSelectionDialog();
         });
     }
 
-    private void toggleHighContrastTheme() {
-        boolean newHighContrastState = accessibilityManager.toggleHighContrast();
+    private void showThemeSelectionDialog() {
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
+        builder.setTitle("Выбор темы");
+
+        // Получаем текущую тему
+        String currentTheme = accessibilityManager.getAppTheme();
+        boolean isHighContrast = accessibilityManager.isHighContrastEnabled();
         
-        // Показываем сообщение о смене темы
-        String message = newHighContrastState ? 
-                getString(R.string.high_contrast_enabled) : 
-                getString(R.string.high_contrast_disabled);
-        Toast.makeText(this, message, Toast.LENGTH_SHORT).show();
+        // Создаем массив опций
+        String[] options = {
+                getString(R.string.theme_light), 
+                getString(R.string.theme_dark),
+                getString(R.string.theme_system),
+                getString(R.string.high_contrast_theme)
+        };
         
-        // Перезапускаем активность для применения темы
-        recreateActivityWithTheme();
+        // Определяем выбранный пункт
+        int checkedItem;
+        if (isHighContrast) {
+            checkedItem = 3; // Высококонтрастная тема
+        } else {
+            switch (currentTheme) {
+                case "light":
+                    checkedItem = 0;
+                    break;
+                case "dark":
+                    checkedItem = 1;
+                    break;
+                case "system":
+                default:
+                    checkedItem = 2;
+                    break;
+            }
+        }
+        
+        builder.setSingleChoiceItems(options, checkedItem, (dialog, which) -> {
+            // Обрабатываем выбор
+            switch (which) {
+                case 0: // Светлая тема
+                    accessibilityManager.setHighContrast(false);
+                    accessibilityManager.setAppTheme("light");
+                    break;
+                case 1: // Темная тема
+                    accessibilityManager.setHighContrast(false);
+                    accessibilityManager.setAppTheme("dark");
+                    break;
+                case 2: // Системная тема
+                    accessibilityManager.setHighContrast(false);
+                    accessibilityManager.setAppTheme("system");
+                    break;
+                case 3: // Высококонтрастная тема
+                    accessibilityManager.setHighContrast(true);
+                    break;
+            }
+            
+            // Тема будет применена автоматически через broadcast
+            // при вызове setAppTheme или setHighContrast
+            
+            dialog.dismiss();
+        });
+        
+        builder.setNegativeButton("Отмена", null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
+        });
+        dialog.show();
     }
 
     private void setupVoiceActivationButton() {
@@ -1151,24 +1208,22 @@ public class MainActivity extends BaseAccessibilityActivity implements
     
     private void startVoiceActivationService() {
         if (!isVoiceActivationServiceRunning()) {
-            // Запрашиваем необходимые разрешения для Android 13+ (API 33+)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // Проверяем и запрашиваем разрешение на отправку уведомлений для Android 13+
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                        != PackageManager.PERMISSION_GRANTED) {
-                    ActivityCompat.requestPermissions(this, 
-                            new String[]{Manifest.permission.POST_NOTIFICATIONS}, 
-                            VOICE_ACTIVATION_PERMISSION_CODE);
-                }
-            }
-            
             // Проверяем разрешение на запись звука
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
                     != PackageManager.PERMISSION_GRANTED) {
-                ActivityCompat.requestPermissions(this, 
-                        new String[]{Manifest.permission.RECORD_AUDIO}, 
-                        VOICE_ACTIVATION_PERMISSION_CODE);
+                // Вместо прямого запроса разрешений, перенаправляем на экран разрешений
+                startActivity(new Intent(this, PermissionRequestActivity.class));
                 return;
+            }
+            
+            // Проверяем разрешение на уведомления для Android 13+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
+                        != PackageManager.PERMISSION_GRANTED) {
+                    // Перенаправляем на экран разрешений
+                    startActivity(new Intent(this, PermissionRequestActivity.class));
+                    return;
+                }
             }
             
             Intent serviceIntent = new Intent(this, VoiceActivationService.class);
@@ -1295,6 +1350,10 @@ public class MainActivity extends BaseAccessibilityActivity implements
             return true;
         } else if (id == R.id.action_chat_settings) {
             showChatSettingsDialog();
+            return true;
+        } else if (id == R.id.action_contact_relations) {
+            Intent intent = new Intent(this, io.finett.myapplication.util.ContactRelationActivity.class);
+            startActivity(intent);
             return true;
         } else if (id == R.id.action_accessibility_settings) {
             Intent intent = new Intent(this, AccessibilitySettingsActivity.class);

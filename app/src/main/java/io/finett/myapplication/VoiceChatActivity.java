@@ -26,6 +26,7 @@ import android.widget.EditText;
 import android.util.Log;
 import android.content.SharedPreferences;
 import android.widget.TextView;
+import java.util.Random;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
@@ -91,6 +92,9 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private boolean isProcessingSpeech = false;
     private long lastVoiceTime = 0;
     
+    // Добавляем поле для хранения текущего сообщения пользователя
+    private ChatMessage currentUserMessage = null;
+    
     private final Runnable speechTimeoutRunnable = new Runnable() {
         @Override
         public void run() {
@@ -115,10 +119,8 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private Animator fadeInAnimator;
     private Animator fadeOutAnimator;
     private Animator borderPulsateAnimator;
-    private View transcriptionOverlay;
-    private TextView transcriptionText;
-    private Animator textAppearAnimator;
-    private boolean isShowingTranscription = false;
+    private Handler typingHandler = new Handler(Looper.getMainLooper());
+    private Random random = new Random();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -157,14 +159,6 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         micButton = findViewById(R.id.voice_chat_mic_button);
         cameraButton = findViewById(R.id.voice_chat_camera_button);
         screenGlowEffect = findViewById(R.id.screenGlowEffect);
-        
-        // Initialize transcription overlay
-        transcriptionOverlay = findViewById(R.id.transcription_overlay);
-        transcriptionText = transcriptionOverlay.findViewById(R.id.transcription_text);
-        
-        // Initialize text appear animator
-        textAppearAnimator = AnimatorInflater.loadAnimator(this, R.animator.text_appear);
-        textAppearAnimator.setTarget(transcriptionText);
         
         // Инициализация аниматоров для эффекта свечения экрана
         fadeInAnimator = AnimatorInflater.loadAnimator(this, R.animator.fade_in);
@@ -531,9 +525,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 lastVoiceTime = System.currentTimeMillis();
                 micButton.setImageResource(R.drawable.ic_stop);
                 
-                // Reset transcription text
-                transcriptionText.setText("");
-                showTranscriptionOverlay(true);
+                // Добавляем пустое сообщение пользователя в чат в начале распознавания
+                if (currentUserMessage == null) {
+                    currentUserMessage = new ChatMessage("", true);
+                    chatAdapter.addMessage(currentUserMessage);
+                }
                 
                 // Запускаем таймер для проверки тишины
                 micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
@@ -579,37 +575,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             }
         }
         
-        // Hide transcription overlay
-        showTranscriptionOverlay(false);
-        
         micButton.removeCallbacks(speechTimeoutRunnable);
         speechRecognizer.stopListening();
         isListening = false;
         isProcessingSpeech = false;
         micButton.setImageResource(R.drawable.ic_mic);
-    }
-
-    private void showTranscriptionOverlay(boolean show) {
-        if (show && !isShowingTranscription) {
-            transcriptionOverlay.setVisibility(View.VISIBLE);
-            transcriptionOverlay.setAlpha(0f);
-            transcriptionOverlay.animate()
-                .alpha(1f)
-                .setDuration(300)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .start();
-            isShowingTranscription = true;
-        } else if (!show && isShowingTranscription) {
-            transcriptionOverlay.animate()
-                .alpha(0f)
-                .setDuration(300)
-                .setInterpolator(new AccelerateDecelerateInterpolator())
-                .withEndAction(() -> {
-                    transcriptionOverlay.setVisibility(View.GONE);
-                    isShowingTranscription = false;
-                })
-                .start();
-        }
     }
 
     private void speakText(String text) {
@@ -630,13 +600,25 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             return;
         }
         
-        ChatMessage userMessage = new ChatMessage(message, true);
-        chatAdapter.addMessage(userMessage);
+        // Обратите внимание, что мы уже имеем сообщение пользователя в интерфейсе
+        // и не добавляем его повторно
+        
         chatAdapter.setLoading(true);
         recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
         
-        // Add to message history
-        messagesList.add(userMessage);
+        // Добавляем сообщение в историю, если текущее сообщение не задано,
+        // создаем новое (это может произойти при прямом вызове sendMessageToAPI)
+        ChatMessage userMessage;
+        if (currentUserMessage == null) {
+            userMessage = new ChatMessage(message, true);
+            messagesList.add(userMessage);
+        } else {
+            // Используем существующее сообщение
+            userMessage = currentUserMessage;
+            messagesList.add(userMessage);
+            // Сбрасываем ссылку на текущее сообщение, так как мы уже отправили его
+            currentUserMessage = null;
+        }
         
         // Если запрос похож на команду, проверяем через CommandProcessor
         if (commandProcessor.processCommand(message)) {
@@ -809,6 +791,12 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     @Override
     public void onBeginningOfSpeech() {
         Log.d("VoiceChatActivity", "Beginning of speech detected");
+        
+        // Убедимся, что пустое сообщение добавлено, когда пользователь начал говорить
+        if (currentUserMessage == null) {
+            currentUserMessage = new ChatMessage("", true);
+            chatAdapter.addMessage(currentUserMessage);
+        }
     }
 
     @Override
@@ -931,6 +919,13 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
             // Игнорируем эти ошибки, так как они часто возникают при нормальной работе
             stopListening();
+            
+            // Удаляем пустое сообщение, если произошла ошибка распознавания
+            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+                chatAdapter.removeMessage(currentUserMessage);
+                currentUserMessage = null;
+            }
+            
             return;
         }
 
@@ -943,6 +938,12 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS || 
                     error == SpeechRecognizer.ERROR_NETWORK) {
                     showError(finalErrorMessage);
+                    
+                    // Удаляем пустое сообщение при серьезной ошибке
+                    if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+                        chatAdapter.removeMessage(currentUserMessage);
+                        currentUserMessage = null;
+                    }
                 }
             }
             stopListening();
@@ -955,25 +956,28 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         if (matches != null && !matches.isEmpty()) {
             String text = matches.get(0);
             
-            // Update transcription text one last time with the final result
+            // Обновляем текст текущего сообщения пользователя с финальным результатом
             updateTranscriptionText(text);
             
             // Логируем полученный текст
             Log.d("VoiceChatActivity", "Recognized text: '" + text + "'");
             
-            // Hide transcription overlay with a slight delay to let user see final result
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                showTranscriptionOverlay(false);
-            }, 800);
-            
-            // Обычное распознавание команд
             // Обрабатываем сначала как команду
             if (!commandProcessor.processCommand(text)) {
                 // Если это не команда, отправляем в API
                 sendMessageToAPI(text);
             }
+            
+            // Сбрасываем текущее сообщение пользователя
+            currentUserMessage = null;
         } else {
             Log.d("VoiceChatActivity", "No speech recognized or empty results");
+            
+            // Удаляем пустое сообщение, если ничего не распознано
+            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+                chatAdapter.removeMessage(currentUserMessage);
+                currentUserMessage = null;
+            }
         }
     }
 
@@ -984,7 +988,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             String text = matches.get(0);
             Log.d("VoiceChatActivity", "Partial result: '" + text + "'");
             
-            // Update transcription text with animation
+            // Обновляем текст текущего сообщения пользователя
             updateTranscriptionText(text);
         }
     }
@@ -1035,11 +1039,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             screenGlowEffect.setVisibility(View.GONE);
         }
         
-        // Hide transcription overlay immediately when pausing 
-        if (isShowingTranscription) {
-            transcriptionOverlay.setVisibility(View.GONE);
-            isShowingTranscription = false;
-        }
+        // Очищаем все анимации печатания
+        typingHandler.removeCallbacksAndMessages(null);
+        
+        // Сбрасываем текущее сообщение пользователя при выходе из активности
+        currentUserMessage = null;
         
         micButton.removeCallbacks(speechTimeoutRunnable);
         stopListening();
@@ -1328,14 +1332,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             return;
         }
         
-        // Only animate if text has changed
-        if (!text.equals(transcriptionText.getText().toString())) {
-            transcriptionText.setText(text);
-            
-            // Start animation only if not already running
-            if (!textAppearAnimator.isRunning()) {
-                textAppearAnimator.start();
-            }
+        // Обновляем текст текущего сообщения пользователя 
+        if (currentUserMessage != null) {
+            currentUserMessage.setText(text);
+            chatAdapter.notifyDataSetChanged();
+            recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
         }
     }
 } 

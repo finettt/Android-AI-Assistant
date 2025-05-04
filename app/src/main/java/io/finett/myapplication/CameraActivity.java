@@ -51,7 +51,7 @@ public class CameraActivity extends BaseAccessibilityActivity implements TextToS
     private TextToSpeech textToSpeech;
     private OpenRouterApi openRouterApi;
     private String apiKey;
-    private static final String MODEL_ID = "google/gemini-2.0-flash-001";
+    private static final String MODEL_ID = "qwen/qwen2.5-vl-32b-instruct:free";
     private CircularProgressIndicator progressIndicator;
     private FloatingActionButton captureButton;
     private PreviewView previewView;

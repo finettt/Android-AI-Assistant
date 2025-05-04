@@ -25,7 +25,7 @@
     <string name="accessibility_settings">Accessibility Settings</string>
     <string name="high_contrast_enabled">High contrast mode enabled</string>
     <string name="high_contrast_disabled">Normal mode enabled</string>
-    <string name="toggle_contrast">Toggle Contrast</string>
+    <string name="toggle_contrast">Выбор темы приложения</string>
     <string name="contrast_mode">Contrast Mode</string>
     <string name="normal_theme">Normal Theme</string>
     <string name="high_contrast_theme">High Contrast Theme</string>
@@ -58,4 +58,11 @@
     <string name="weather_units_summary">Выберите единицы измерения для температуры</string>
     <string name="weather_api_key">API ключ для погоды</string>
     <string name="weather_api_key_summary">Введите ваш API ключ от OpenWeatherMap</string>
+    
+    <!-- Theme Settings -->
+    <string name="app_theme">Тема приложения</string>
+    <string name="app_theme_summary">Выбор тёмной или светлой темы оформления</string>
+    <string name="theme_light">Светлая тема</string>
+    <string name="theme_dark">Тёмная тема</string>
+    <string name="theme_system">Системная тема</string>
 </resources>

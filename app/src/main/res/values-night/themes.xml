@@ -33,5 +33,16 @@
         
         <!-- Карточка сообщения -->
         <item name="cardBackgroundColor">@color/surface</item>
+        
+        <!-- Белые контролы -->
+        <item name="colorControlNormal">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
+        <item name="colorControlHighlight">@color/white</item>
+        
+        <!-- Стили для полей ввода -->
+        <item name="textInputStyle">@style/Alan.TextInputLayout</item>
+        <item name="editTextStyle">@style/Alan.EditText</item>
+        <item name="android:editTextStyle">@style/Alan.EditText</item>
+        <item name="textInputOutlinedStyle">@style/Alan.TextInputLayout.OutlinedBox</item>
     </style>
 </resources>

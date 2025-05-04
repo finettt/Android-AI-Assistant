@@ -1,6 +1,7 @@
 package io.finett.myapplication.util;
 
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
@@ -32,6 +33,10 @@ public class AccessibilityManager {
 
     public boolean isHighContrastEnabled() {
         return preferences.getBoolean("high_contrast", false);
+    }
+
+    public String getAppTheme() {
+        return preferences.getString("app_theme", "system");
     }
 
     public boolean isTtsFeedbackEnabled() {
@@ -115,5 +120,18 @@ public class AccessibilityManager {
      */
     public void setHighContrast(boolean enabled) {
         preferences.edit().putBoolean("high_contrast", enabled).apply();
+    }
+
+    /**
+     * Устанавливает тему приложения
+     * @param theme тема приложения (light, dark, system)
+     */
+    public void setAppTheme(String theme) {
+        preferences.edit().putString("app_theme", theme).apply();
+        
+        // Отправляем широковещательное сообщение об изменении настроек
+        // для динамического обновления интерфейса без перезапуска активностей
+        Intent intent = new Intent("io.finett.myapplication.SETTINGS_UPDATED");
+        context.sendBroadcast(intent);
     }
 } 

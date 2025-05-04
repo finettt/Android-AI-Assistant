@@ -9,7 +9,7 @@
     <color name="primary_dark">#000000</color>
     <color name="secondary">#757575</color>
     <color name="secondary_dark">#424242</color>
-    <color name="accent">#9E9E9E</color>
+    <color name="accent">#0D47A1</color>
     <color name="background">#121212</color>
     <color name="surface">#1E1E1E</color>
     <color name="on_background">#FFFFFF</color>
@@ -68,4 +68,32 @@
     <color name="on_surface_dark">#FFFFFF</color>
     <color name="text_primary_dark">#FFFFFF</color>
     <color name="text_secondary_dark">#B3FFFFFF</color>
+
+    <!-- Light Theme Colors -->
+    <color name="background_light">#FFFFFF</color>
+    <color name="surface_light">#FFFFFF</color>
+    <color name="primary_light">#607D8B</color>
+    <color name="primary_dark_light">#455A64</color>
+    <color name="accent_light">#0D47A1</color>
+    <color name="on_background_light">#000000</color>
+    <color name="on_surface_light">#000000</color>
+    <color name="text_primary_light">#212121</color>
+    <color name="text_secondary_light">#757575</color>
+    
+    <!-- Цвета для сообщений в светлой теме -->
+    <color name="message_user_background_light">#E0E0E0</color>
+    <color name="message_ai_background_light">#F5F5F5</color>
+    <color name="message_user_text_light">#212121</color>
+    <color name="message_ai_text_light">#212121</color>
+    
+    <!-- Цвета для полей ввода в светлой теме -->
+    <color name="input_background_light">#F5F5F5</color>
+    <color name="input_stroke_light">#607D8B</color>
+    <color name="input_text_light">#212121</color>
+    <color name="input_hint_light">#757575</color>
+    
+    <!-- Цвета для окантовки полей и контролов -->
+    <color name="control_activated">#FFFFFF</color>
+    <color name="control_normal">@color/white</color>
+    <color name="control_error">#0D47A1</color>
 </resources>

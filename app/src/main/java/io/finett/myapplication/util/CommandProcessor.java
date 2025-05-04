@@ -281,24 +281,43 @@ public class CommandProcessor {
     
     private boolean processPhoneCommand(String command) {
         // Проверяем шаблоны для телефонных звонков
-        Pattern phoneNamePattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) ([a-zA-Zа-яА-Я]+).*", Pattern.CASE_INSENSITIVE);
+        Pattern phoneNamePattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) ([a-zA-Zа-яА-Я\\s]+).*", Pattern.CASE_INSENSITIVE);
         Pattern phoneNumberPattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) (?:на номер )?([0-9\\+]+).*", Pattern.CASE_INSENSITIVE);
+        
+        // Улучшенный шаблон для распознавания звонков родственникам
+        Pattern phoneRelationPattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) (?:моей|моему|моим|мою|моё|моего|нашей|нашему|нашим)? ([a-zA-Zа-яА-Я\\s]+).*", Pattern.CASE_INSENSITIVE);
         
         Matcher nameMatcherPhone = phoneNamePattern.matcher(command);
         Matcher numberMatcherPhone = phoneNumberPattern.matcher(command);
+        Matcher relationMatcherPhone = phoneRelationPattern.matcher(command);
         
-        if (nameMatcherPhone.matches()) {
-            String contactName = nameMatcherPhone.group(1);
-            if (communicationManager != null) {
-                communicationManager.makePhoneCall(contactName);
-                textToSpeech.speak("Набираю " + contactName, TextToSpeech.QUEUE_FLUSH, null, null);
-                return true;
-            }
-        } else if (numberMatcherPhone.matches()) {
+        // Сначала проверяем номер телефона (наиболее точное совпадение)
+        if (numberMatcherPhone.matches()) {
             String phoneNumber = numberMatcherPhone.group(1);
             if (communicationManager != null) {
                 communicationManager.makePhoneCall(phoneNumber);
                 textToSpeech.speak("Звоню на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        }
+        // Затем проверяем отношения/имена
+        else if (nameMatcherPhone.matches() || relationMatcherPhone.matches()) {
+            String contactQuery = nameMatcherPhone.matches() 
+                                ? nameMatcherPhone.group(1) 
+                                : relationMatcherPhone.group(1);
+                                
+            contactQuery = contactQuery.trim();
+            
+            if (communicationManager != null) {
+                communicationManager.makePhoneCall(contactQuery);
+                
+                // Если это отношение, которое мы уже знаем, используем его в сообщении
+                String relation = communicationManager.getContactNlpProcessor().extractRelationFromText(contactQuery);
+                if (relation != null && communicationManager.hasRelationMapping(relation)) {
+                    textToSpeech.speak("Звоню " + relation, TextToSpeech.QUEUE_FLUSH, null, null);
+                } else {
+                    textToSpeech.speak("Набираю " + contactQuery, TextToSpeech.QUEUE_FLUSH, null, null);
+                }
                 return true;
             }
         }
@@ -308,26 +327,48 @@ public class CommandProcessor {
     
     private boolean processSmsCommand(String command) {
         // Проверяем шаблоны для SMS сообщений
-        Pattern smsNamePattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
+        Pattern smsNamePattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я\\s]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
         Pattern smsNumberPattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([0-9\\+]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
+        
+        // Улучшенный шаблон для распознавания SMS родственникам
+        Pattern smsRelationPattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) (?:моей|моему|моим|мою|моё|моего|нашей|нашему|нашим)? ([a-zA-Zа-яА-Я\\s]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
         
         Matcher nameMatcher = smsNamePattern.matcher(command);
         Matcher numberMatcher = smsNumberPattern.matcher(command);
+        Matcher relationMatcher = smsRelationPattern.matcher(command);
         
-        if (nameMatcher.matches()) {
-            String contactName = nameMatcher.group(1);
-            String message = nameMatcher.group(2);
-            if (communicationManager != null) {
-                communicationManager.sendSms(contactName, message);
-                textToSpeech.speak("Отправляю сообщение " + contactName, TextToSpeech.QUEUE_FLUSH, null, null);
-                return true;
-            }
-        } else if (numberMatcher.matches()) {
+        // Сначала проверяем номер телефона (наиболее точное совпадение)
+        if (numberMatcher.matches()) {
             String phoneNumber = numberMatcher.group(1);
             String message = numberMatcher.group(2);
             if (communicationManager != null) {
                 communicationManager.sendSms(phoneNumber, message);
                 textToSpeech.speak("Отправляю SMS на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
+                return true;
+            }
+        }
+        // Затем проверяем отношения/имена
+        else if (nameMatcher.matches() || relationMatcher.matches()) {
+            String contactQuery = nameMatcher.matches() 
+                               ? nameMatcher.group(1) 
+                               : relationMatcher.group(1);
+                               
+            String message = nameMatcher.matches() 
+                          ? nameMatcher.group(2) 
+                          : relationMatcher.group(2);
+                          
+            contactQuery = contactQuery.trim();
+            
+            if (communicationManager != null) {
+                communicationManager.sendSms(contactQuery, message);
+                
+                // Если это отношение, которое мы уже знаем, используем его в сообщении
+                String relation = communicationManager.getContactNlpProcessor().extractRelationFromText(contactQuery);
+                if (relation != null && communicationManager.hasRelationMapping(relation)) {
+                    textToSpeech.speak("Отправляю сообщение " + relation, TextToSpeech.QUEUE_FLUSH, null, null);
+                } else {
+                    textToSpeech.speak("Отправляю сообщение " + contactQuery, TextToSpeech.QUEUE_FLUSH, null, null);
+                }
                 return true;
             }
         }

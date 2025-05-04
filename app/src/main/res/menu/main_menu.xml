@@ -18,6 +18,11 @@
         app:showAsAction="never" />
         
     <item
+        android:id="@+id/action_contact_relations"
+        android:title="Управление контактами"
+        app:showAsAction="never" />
+        
+    <item
         android:id="@+id/action_accessibility_settings"
         android:title="Настройки доступности"
         app:showAsAction="never" />

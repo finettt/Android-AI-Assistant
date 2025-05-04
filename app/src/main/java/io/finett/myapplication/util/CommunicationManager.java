@@ -12,6 +12,8 @@ import androidx.appcompat.app.AlertDialog;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import java.util.List;
+import android.graphics.Color;
+import io.finett.myapplication.R;
 
 public class CommunicationManager {
     private static final int PERMISSION_REQUEST_CALL = 101;
@@ -20,19 +22,20 @@ public class CommunicationManager {
     private final Context context;
     private final Activity activity;
     private final ContactsManager contactsManager;
+    private final ContactNlpProcessor contactNlpProcessor;
     
     public CommunicationManager(Activity activity) {
         this.activity = activity;
         this.context = activity;
         this.contactsManager = new ContactsManager(activity);
+        this.contactNlpProcessor = new ContactNlpProcessor(context, contactsManager);
     }
     
     public boolean checkCallPermission() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(activity,
-                    new String[]{Manifest.permission.CALL_PHONE},
-                    PERMISSION_REQUEST_CALL);
+            // Перенаправляем на экран разрешений
+            activity.startActivity(new Intent(context, io.finett.myapplication.PermissionRequestActivity.class));
             return false;
         }
         return true;
@@ -41,9 +44,8 @@ public class CommunicationManager {
     public boolean checkSmsPermission() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(activity,
-                    new String[]{Manifest.permission.SEND_SMS},
-                    PERMISSION_REQUEST_SMS);
+            // Перенаправляем на экран разрешений
+            activity.startActivity(new Intent(context, io.finett.myapplication.PermissionRequestActivity.class));
             return false;
         }
         return true;
@@ -60,8 +62,8 @@ public class CommunicationManager {
             return;
         }
         
-        // Ищем контакты по имени
-        List<ContactsManager.Contact> contacts = contactsManager.findContactsByPartialName(nameOrNumber);
+        // Используем NLP поиск для нахождения контакта
+        List<ContactsManager.Contact> contacts = contactNlpProcessor.findContactsByRelationOrName(nameOrNumber);
         
         if (contacts.isEmpty()) {
             Toast.makeText(context, "Контакт не найден", Toast.LENGTH_SHORT).show();
@@ -71,8 +73,14 @@ public class CommunicationManager {
         if (contacts.size() == 1) {
             showCallConfirmation(contacts.get(0), contacts.get(0).phoneNumber);
         } else {
-            showContactSelectionDialog(contacts, contact -> 
-                    showCallConfirmation(contact, contact.phoneNumber));
+            showContactSelectionDialog(contacts, contact -> {
+                // Запоминаем выбор пользователя для будущих поисков
+                String relation = contactNlpProcessor.extractRelationFromText(nameOrNumber);
+                if (relation != null) {
+                    contactNlpProcessor.addRelationMapping(relation, contact.name);
+                }
+                showCallConfirmation(contact, contact.phoneNumber);
+            });
         }
     }
     
@@ -87,8 +95,8 @@ public class CommunicationManager {
             return;
         }
         
-        // Ищем контакты по имени
-        List<ContactsManager.Contact> contacts = contactsManager.findContactsByPartialName(nameOrNumber);
+        // Используем NLP поиск для нахождения контакта
+        List<ContactsManager.Contact> contacts = contactNlpProcessor.findContactsByRelationOrName(nameOrNumber);
         
         if (contacts.isEmpty()) {
             Toast.makeText(context, "Контакт не найден", Toast.LENGTH_SHORT).show();
@@ -98,9 +106,48 @@ public class CommunicationManager {
         if (contacts.size() == 1) {
             showSmsConfirmation(contacts.get(0), contacts.get(0).phoneNumber, message);
         } else {
-            showContactSelectionDialog(contacts, contact -> 
-                    showSmsConfirmation(contact, contact.phoneNumber, message));
+            showContactSelectionDialog(contacts, contact -> {
+                // Запоминаем выбор пользователя для будущих поисков
+                String relation = contactNlpProcessor.extractRelationFromText(nameOrNumber);
+                if (relation != null) {
+                    contactNlpProcessor.addRelationMapping(relation, contact.name);
+                }
+                showSmsConfirmation(contact, contact.phoneNumber, message);
+            });
         }
+    }
+    
+    /**
+     * Отображает диалог для связывания отношения с контактом
+     */
+    public void showRelationMappingDialog(String relation, List<ContactsManager.Contact> contacts) {
+        if (contacts.isEmpty()) {
+            Toast.makeText(context, "Нет контактов для связывания", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        
+        String[] items = new String[contacts.size()];
+        for (int i = 0; i < contacts.size(); i++) {
+            ContactsManager.Contact contact = contacts.get(i);
+            items[i] = contact.name + " (" + contact.phoneNumber + ")";
+        }
+        
+        AlertDialog dialog = new AlertDialog.Builder(activity)
+                .setTitle("Связать '" + relation + "' с контактом")
+                .setItems(items, (d, which) -> {
+                    ContactsManager.Contact contact = contacts.get(which);
+                    contactNlpProcessor.addRelationMapping(relation, contact.name);
+                    Toast.makeText(context, "Связь успешно создана", Toast.LENGTH_SHORT).show();
+                })
+                .setNegativeButton("Отмена", null)
+                .create();
+        
+        // Установка белого цвета для кнопок после показа диалога
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        });
+        
+        dialog.show();
     }
     
     private void showContactSelectionDialog(List<ContactsManager.Contact> contacts, ContactSelectedCallback callback) {
@@ -110,19 +157,26 @@ public class CommunicationManager {
             items[i] = contact.name + " (" + contact.phoneNumber + ")";
         }
         
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Выберите контакт")
-                .setItems(items, (dialog, which) -> callback.onContactSelected(contacts.get(which)))
+                .setItems(items, (d, which) -> callback.onContactSelected(contacts.get(which)))
                 .setNegativeButton("Отмена", null)
-                .show();
+                .create();
+        
+        // Установка белого цвета для кнопок после показа диалога
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        });
+        
+        dialog.show();
     }
     
     private void showCallConfirmation(ContactsManager.Contact contact, String phoneNumber) {
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение звонка")
                 .setMessage("Вы действительно хотите позвонить " + 
                         (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) + "?")
-                .setPositiveButton("Да", (dialog, which) -> {
+                .setPositiveButton("Да", (d, which) -> {
                     try {
                         Intent intent = new Intent(Intent.ACTION_CALL);
                         intent.setData(Uri.parse("tel:" + phoneNumber));
@@ -132,16 +186,24 @@ public class CommunicationManager {
                     }
                 })
                 .setNegativeButton("Нет", null)
-                .show();
+                .create();
+        
+        // Установка белого цвета для кнопок после показа диалога
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        });
+        
+        dialog.show();
     }
     
     private void showSmsConfirmation(ContactsManager.Contact contact, String phoneNumber, String message) {
-        new AlertDialog.Builder(activity)
+        AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение отправки SMS")
                 .setMessage("Отправить сообщение " + 
                         (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) +
                         "?\n\nТекст: " + message)
-                .setPositiveButton("Да", (dialog, which) -> {
+                .setPositiveButton("Да", (d, which) -> {
                     try {
                         SmsManager smsManager = SmsManager.getDefault();
                         smsManager.sendTextMessage(phoneNumber, null, message, null, null);
@@ -151,7 +213,30 @@ public class CommunicationManager {
                     }
                 })
                 .setNegativeButton("Нет", null)
-                .show();
+                .create();
+        
+        // Установка белого цвета для кнопок после показа диалога
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(Color.WHITE);
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(Color.WHITE);
+        });
+        
+        dialog.show();
+    }
+    
+    /**
+     * Проверяет наличие связи между отношением и контактом
+     */
+    public boolean hasRelationMapping(String relation) {
+        return contactNlpProcessor != null && 
+               contactNlpProcessor.extractRelationFromText(relation) != null;
+    }
+    
+    /**
+     * Получить NLP-процессор контактов
+     */
+    public ContactNlpProcessor getContactNlpProcessor() {
+        return contactNlpProcessor;
     }
     
     private interface ContactSelectedCallback {

@@ -41,15 +41,29 @@
         <item name="alertDialogTheme">@style/Alan.Dialog</item>
         
         <!-- Применяем стили кнопок -->
-        <item name="buttonBarButtonStyle">@style/Alan.Button.Common</item>
-        <item name="materialButtonStyle">@style/Alan.Button.Common</item>
-        <item name="android:buttonStyle">@style/Alan.Button.Common</item>
-        <item name="android:buttonBarButtonStyle">@style/Alan.Button.Common</item>
+        <item name="materialButtonStyle">@style/WhiteBorderedButton</item>
+        <item name="android:buttonStyle">@style/WhiteBorderedButton</item>
+        <item name="materialButtonOutlinedStyle">@style/WhiteBorderedOutlinedButton</item>
+        <item name="borderlessButtonStyle">@style/WhiteBorderedTextButton</item>
+        
+        <!-- Стили для диалогов -->
+        <item name="buttonBarPositiveButtonStyle">@style/Alan.Button</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Alan.Button</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Alan.Button</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Alan.Button</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Alan.Button</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/Alan.Button</item>
+        
+        <!-- Стили для полей ввода -->
+        <item name="textInputStyle">@style/Alan.TextInputLayout</item>
+        <item name="editTextStyle">@style/Alan.EditText</item>
+        <item name="android:editTextStyle">@style/Alan.EditText</item>
+        <item name="textInputOutlinedStyle">@style/Alan.TextInputLayout.OutlinedBox</item>
     </style>
     
     <!-- Алан Стиль для диалогов -->
     <style name="Alan.Dialog" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
-        <item name="colorPrimary">@color/secondary</item>
+        <item name="colorPrimary">@color/accent</item>
         <item name="colorSurface">@color/surface</item>
         <item name="colorOnSurface">@color/text_primary</item>
         <item name="android:textColorPrimary">@color/text_primary</item>
@@ -74,11 +88,128 @@
     <style name="Alan.Button.Common" parent="Widget.MaterialComponents.Button">
         <item name="android:textColor">@color/white</item>
         <item name="iconTint">@color/white</item>
+        <item name="backgroundTint">@color/accent</item>
     </style>
     
     <!-- Стиль для текстовых кнопок -->
     <style name="Alan.Button.Text" parent="Widget.MaterialComponents.Button.TextButton">
         <item name="android:textColor">@color/white</item>
         <item name="iconTint">@color/white</item>
+    </style>
+    
+    <!-- Светлая тема приложения -->
+    <style name="Theme.MyApplication.Light" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary_light</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_light</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent_light</item>
+        <item name="colorSecondaryVariant">@color/accent_light</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorAccent">@color/accent_light</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnBackground">@color/on_background_light</item>
+        <item name="colorOnSurface">@color/on_surface_light</item>
+        
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/primary_dark_light</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_primary_light</item>
+        <item name="android:textColorSecondary">@color/text_secondary_light</item>
+        
+        <!-- Карточка сообщения -->
+        <item name="cardBackgroundColor">@color/surface_light</item>
+        
+        <!-- Применяем стиль для диалогов -->
+        <item name="materialAlertDialogTheme">@style/Alan.Dialog.Light</item>
+        <item name="alertDialogTheme">@style/Alan.Dialog.Light</item>
+        
+        <!-- Контролы -->
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlHighlight">@color/primary_light</item>
+        
+        <!-- Применяем стили кнопок -->
+        <item name="buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonOutlinedStyle">@style/Alan.Button.Outlined.Light</item>
+        <item name="borderlessButtonStyle">@style/Alan.Button.Text.Light</item>
+        
+        <!-- Стили для полей ввода -->
+        <item name="textInputStyle">@style/Alan.TextInputLayout.Light</item>
+        <item name="editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="android:editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="textInputOutlinedStyle">@style/Alan.TextInputLayout.OutlinedBox.Light</item>
+    </style>
+    
+    <!-- Стиль для диалогов в светлой теме -->
+    <style name="Alan.Dialog.Light" parent="ThemeOverlay.MaterialComponents.Dialog.Alert">
+        <item name="colorPrimary">@color/primary_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnSurface">@color/text_primary_light</item>
+        <item name="android:textColorPrimary">@color/text_primary_light</item>
+        <item name="android:textColorSecondary">@color/text_secondary_light</item>
+        <item name="buttonBarPositiveButtonStyle">@style/Alan.Button.Light</item>
+        <item name="buttonBarNegativeButtonStyle">@style/Alan.Button.Light</item>
+        <item name="buttonBarNeutralButtonStyle">@style/Alan.Button.Light</item>
+        <item name="android:buttonBarPositiveButtonStyle">@style/Alan.Button.Light</item>
+        <item name="android:buttonBarNegativeButtonStyle">@style/Alan.Button.Light</item>
+        <item name="android:buttonBarNeutralButtonStyle">@style/Alan.Button.Light</item>
+        <item name="materialButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="buttonStyle">@style/Alan.Button.Common.Light</item>
+    </style>
+    
+    <!-- Стиль для кнопок в диалогах светлой темы -->
+    <style name="Alan.Button.Light" parent="Widget.MaterialComponents.Button.TextButton.Dialog">
+        <item name="android:textColor">@color/primary_light</item>
+        <item name="iconTint">@color/primary_light</item>
+    </style>
+    
+    <!-- Стиль для обычных кнопок в светлой теме -->
+    <style name="Alan.Button.Common.Light" parent="Widget.MaterialComponents.Button">
+        <item name="android:textColor">@color/white</item>
+        <item name="iconTint">@color/white</item>
+        <item name="backgroundTint">@color/primary_light</item>
+    </style>
+    
+    <!-- Стиль для полей ввода в темной теме -->
+    <style name="Alan.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.FilledBox">
+        <item name="boxStrokeColor">@color/text_input_box_stroke_color</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/white</item>
+        <item name="android:textColorHint">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
+        <item name="colorControlNormal">@color/white</item>
+        <item name="endIconTint">@color/white</item>
+        <item name="startIconTint">@color/white</item>
+    </style>
+    
+    <!-- Стиль для обведенных полей ввода в темной теме -->
+    <style name="Alan.TextInputLayout.OutlinedBox" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/text_input_box_stroke_color</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/white</item>
+        <item name="android:textColorHint">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
+        <item name="colorControlNormal">@color/white</item>
+        <item name="endIconTint">@color/white</item>
+        <item name="startIconTint">@color/white</item>
+    </style>
+    
+    <!-- Стиль для обычных EditText в темной теме -->
+    <style name="Alan.EditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">@color/white</item>
+        <item name="android:textColorHint">@color/white</item>
+        <item name="android:backgroundTint">@color/white</item>
+        <item name="colorControlActivated">@color/white</item>
+        <item name="colorControlNormal">@color/white</item>
     </style>
 </resources>

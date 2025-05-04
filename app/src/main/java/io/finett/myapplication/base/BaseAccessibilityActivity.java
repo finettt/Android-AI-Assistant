@@ -75,11 +75,94 @@ public abstract class BaseAccessibilityActivity extends AppCompatActivity {
     }
 
     protected void applyAccessibilitySettings() {
+        // Получаем выбранную тему
+        String appTheme = accessibilityManager.getAppTheme();
+        boolean isHighContrast = accessibilityManager.isHighContrastEnabled();
+        
         // Применяем тему в зависимости от настроек
-        if (accessibilityManager.isHighContrastEnabled()) {
-            setTheme(R.style.Theme_MyApplication_HighContrast);
+        int themeId;
+        int statusBarColor;
+        int navigationBarColor;
+        
+        if (isHighContrast) {
+            themeId = R.style.Theme_MyApplication_HighContrast;
+            statusBarColor = getResources().getColor(R.color.primary_dark_high_contrast, getTheme());
+            navigationBarColor = getResources().getColor(R.color.primary_dark_high_contrast, getTheme());
         } else {
-            setTheme(R.style.Theme_MyApplication);
+            switch (appTheme) {
+                case "light":
+                    themeId = R.style.Theme_MyApplication_Light;
+                    statusBarColor = getResources().getColor(R.color.primary_dark_light, getTheme());
+                    navigationBarColor = getResources().getColor(R.color.primary_dark_light, getTheme());
+                    break;
+                case "dark":
+                    themeId = R.style.Theme_MyApplication;
+                    statusBarColor = getResources().getColor(R.color.primary_dark, getTheme());
+                    navigationBarColor = getResources().getColor(R.color.primary_dark, getTheme());
+                    break;
+                case "system":
+                default:
+                    // При выборе системной темы используем настройки DayNight
+                    themeId = R.style.Theme_MyApplication;
+                    statusBarColor = getResources().getColor(R.color.primary_dark, getTheme());
+                    navigationBarColor = getResources().getColor(R.color.primary_dark, getTheme());
+                    break;
+            }
+        }
+        
+        // Устанавливаем тему
+        setTheme(themeId);
+        
+        // Обновляем цвета системных панелей
+        getWindow().setStatusBarColor(statusBarColor);
+        getWindow().setNavigationBarColor(navigationBarColor);
+        
+        // Обновляем цвет иконок в зависимости от яркости фона статусбара 
+        if (appTheme.equals("light") && !isHighContrast) {
+            // Тёмные иконки для светлой темы
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                getWindow().getInsetsController().setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                
+                getWindow().getInsetsController().setSystemBarsAppearance(
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = getWindow().getDecorView();
+                int flags = decorView.getSystemUiVisibility();
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                }
+                decorView.setSystemUiVisibility(flags);
+            }
+        } else {
+            // Светлые иконки для тёмной темы
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                getWindow().getInsetsController().setSystemBarsAppearance(
+                    0, 
+                    WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS);
+                
+                getWindow().getInsetsController().setSystemBarsAppearance(
+                    0,
+                    WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = getWindow().getDecorView();
+                int flags = decorView.getSystemUiVisibility();
+                flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+                }
+                decorView.setSystemUiVisibility(flags);
+            }
+        }
+        
+        // Форсируем перерисовку интерфейса
+        ViewGroup contentView = findViewById(android.R.id.content);
+        if (contentView != null) {
+            contentView.invalidate();
+            contentView.requestLayout();
         }
         
         // Обновляем контент после смены темы

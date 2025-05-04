@@ -4,6 +4,7 @@ import android.Manifest;
 import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.database.Cursor;
 import android.provider.ContactsContract;
@@ -38,9 +39,8 @@ public class ContactsManager {
     public boolean checkContactsPermission() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_CONTACTS)
                 != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(activity,
-                    new String[]{Manifest.permission.READ_CONTACTS},
-                    PERMISSION_REQUEST_CONTACTS);
+            // Перенаправляем на экран разрешений
+            activity.startActivity(new Intent(context, io.finett.myapplication.PermissionRequestActivity.class));
             return false;
         }
         return true;

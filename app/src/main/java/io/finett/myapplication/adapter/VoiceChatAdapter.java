@@ -99,6 +99,14 @@ public class VoiceChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         scrollToLastItem();
     }
 
+    public void removeMessage(ChatMessage message) {
+        int position = messages.indexOf(message);
+        if (position != -1) {
+            messages.remove(position);
+            notifyItemRemoved(position);
+        }
+    }
+
     public void setMessages(List<ChatMessage> newMessages) {
         messages.clear();
         if (newMessages != null) {
