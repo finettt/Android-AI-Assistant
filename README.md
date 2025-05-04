@@ -137,15 +137,6 @@ For deep project cleanup, use:
 - Windows: `clean-project.bat`
 - Linux/macOS: `clean-project.sh`
 
-## Recent Updates
-
-### v1.1.0 (April 2025)
-- Added complete English localization
-- Separated string resources by language
-- Fixed UI issues related to icon tinting
-- Improved voice activation reliability
-- Added accessibility enhancements
-
 ## Contributing
 
 1. Fork the repository
