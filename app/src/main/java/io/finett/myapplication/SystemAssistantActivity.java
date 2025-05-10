@@ -261,7 +261,26 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         messagesRecyclerView.setAdapter(messageAdapter);
         
         // Настраиваем обработчик нажатия на кнопку микрофона
-        systemAssistantMic.setOnClickListener(v -> startVoiceRecognition());
+        systemAssistantMic.setOnClickListener(v -> {
+            if (isListening || isSpeaking) {
+                // Если мы уже слушаем или говорим, останавливаем
+                stopListening();
+                // Меняем вид кнопки и текст
+                systemAssistantMic.setImageResource(R.drawable.ic_mic);
+                systemAssistantPromptText.setText("Нажмите на микрофон");
+                // Удаляем индикатор прослушивания
+                removeListeningIndicator();
+                // Сбрасываем анимацию
+                if (pulseAnimator != null) {
+                    pulseAnimator.setDuration(1500);
+                }
+            } else {
+                // Если не слушаем, запускаем прямое распознавание
+                startDirectVoiceRecognition();
+                // Меняем вид кнопки
+                systemAssistantMic.setImageResource(R.drawable.ic_stop);
+            }
+        });
         
         // Настраиваем обработчик нажатия на кнопку закрытия
         closeButton.setOnClickListener(v -> finish());
@@ -463,6 +482,13 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             pulseAnimator.setDuration(1500);
         }
         systemAssistantPromptText.setText("Говорите...");
+        
+        // Обновляем иконку микрофона в зависимости от состояния
+        if (isListening) {
+            systemAssistantMic.setImageResource(R.drawable.ic_stop);
+        } else {
+            systemAssistantMic.setImageResource(R.drawable.ic_mic);
+        }
     }
     
     @Override
@@ -1050,8 +1076,9 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                 pulseAnimator.setDuration(800);
             }
             
-            // Меняем текст подсказки
+            // Меняем текст подсказки и иконку микрофона
             systemAssistantPromptText.setText("Слушаю...");
+            systemAssistantMic.setImageResource(R.drawable.ic_stop);
             
             // Проверяем разрешение на запись аудио
             if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
@@ -1140,6 +1167,11 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         
         // Возвращаем анимацию и текст в исходное состояние
         resetUIState();
+        
+        // Восстанавливаем громкость
+        if (volumeManager != null) {
+            volumeManager.restoreVolume();
+        }
     }
     
     // Реализация методов интерфейса RecognitionListener
@@ -1154,6 +1186,12 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         Log.d(TAG, "Начало речи");
         isProcessingSpeech = true;
         lastVoiceTime = System.currentTimeMillis();
+        
+        // Обновляем UI при начале речи
+        runOnUiThread(() -> {
+            systemAssistantMic.setImageResource(R.drawable.ic_stop);
+            systemAssistantPromptText.setText("Слушаю...");
+        });
     }
 
     @Override
@@ -1224,18 +1262,30 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         // Удаляем индикатор прослушивания
         removeListeningIndicator();
         
-        // Возвращаем анимацию и текст в исходное состояние
-        resetUIState();
+        // Сбрасываем состояние распознавания
+        isListening = false;
+        isProcessingSpeech = false;
         
-        // Показываем сообщение об ошибке только если это критическая ошибка
-        if (showErrorMessage) {
-            AssistantMessage assistantErrorMessage = new AssistantMessage(
-                    "Ошибка распознавания речи: " + errorMessage, 
-                    "Ошибка", 
-                    false);
-            messageAdapter.addMessage(assistantErrorMessage);
-            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
-        }
+        // Обновляем UI
+        runOnUiThread(() -> {
+            systemAssistantMic.setImageResource(R.drawable.ic_mic);
+            systemAssistantPromptText.setText("Говорите...");
+            
+            // Возвращаем анимацию в исходное состояние
+            if (pulseAnimator != null) {
+                pulseAnimator.setDuration(1500);
+            }
+            
+            // Показываем сообщение об ошибке только если это критическая ошибка
+            if (showErrorMessage) {
+                AssistantMessage assistantErrorMessage = new AssistantMessage(
+                        "Ошибка распознавания речи: " + errorMessage, 
+                        "Ошибка", 
+                        false);
+                messageAdapter.addMessage(assistantErrorMessage);
+                messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+            }
+        });
         
         // Восстанавливаем громкость
         if (volumeManager != null) {
@@ -1275,6 +1325,9 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                     true);
             messageAdapter.addMessage(userMessage);
             messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+            
+            // Обновляем UI
+            systemAssistantMic.setImageResource(R.drawable.ic_mic);
             
             // Проверяем, является ли команда специфичной для ассистента
             if (processAssistantSpecificCommand(recognizedText)) {
