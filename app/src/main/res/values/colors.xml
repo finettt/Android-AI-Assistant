@@ -96,4 +96,16 @@
     <color name="control_activated">#FFFFFF</color>
     <color name="control_normal">@color/white</color>
     <color name="control_error">#0D47A1</color>
+
+    <!-- Цвета для ассистента -->
+    <color name="assistant_border">#8B42ED</color>
+    <color name="assistant_primary">#8B42ED</color>
+    <color name="assistant_secondary">#0196FF</color>
+    <color name="assistant_accent">#FF3DEB</color>
+    <color name="assistant_background_start">#4D000000</color>
+    <color name="assistant_background_end">#80000000</color>
+    <color name="assistant_text_primary">#FFFFFF</color>
+    <color name="assistant_text_secondary">#E0E0E0</color>
+    <color name="assistant_mic_shadow">#40000000</color>
+    <color name="assistant_hint_text">#CCFFFFFF</color>
 </resources>

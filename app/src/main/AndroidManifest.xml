@@ -6,6 +6,9 @@
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     
+    <!-- Разрешение для работы как системный ассистент -->
+    <uses-permission android:name="android.permission.BIND_VOICE_INTERACTION" />
+    
     <!-- Разрешения для файловой системы -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" 
         android:maxSdkVersion="32" />
@@ -99,6 +102,46 @@
             android:exported="false" />
 
         <activity
+            android:name=".AssistantActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Assistant"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:launchMode="singleTask"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.assistant"
+                android:resource="@xml/assistant_service" />
+        </activity>
+
+        <activity
+            android:name=".SystemAssistantActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Transparent"
+            android:configChanges="orientation|keyboardHidden|screenSize"
+            android:launchMode="singleTask"
+            android:showOnLockScreen="true"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true">
+            <intent-filter>
+                <action android:name="android.intent.action.SYSTEM_ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity>
+
+        <activity
             android:name=".AccessibilitySettingsActivity"
             android:exported="false"
             android:label="Настройки доступности"
@@ -139,6 +182,29 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="microphone" />
+            
+        <service
+            android:name=".VoiceInteractionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:enabled="true"
+            android:exported="true">
+            <meta-data 
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".VoiceInteractionSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION_SESSION_SERVICE"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionSessionService" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name=".BootReceiver"

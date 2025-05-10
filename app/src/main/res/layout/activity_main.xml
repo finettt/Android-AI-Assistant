@@ -94,6 +94,7 @@
         android:layout_gravity="start">
 
         <LinearLayout
+            android:id="@+id/drawerContent"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="vertical">

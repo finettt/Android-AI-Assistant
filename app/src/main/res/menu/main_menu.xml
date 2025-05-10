@@ -3,32 +3,44 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     
     <item
-        android:id="@+id/action_weather_settings"
-        android:title="@string/weather_settings"
+        android:id="@+id/action_assistant_settings"
+        android:title="Установить как ассистент"
+        android:icon="@drawable/ic_assistant"
         app:showAsAction="never" />
         
     <item
         android:id="@+id/action_voice_activation_settings"
         android:title="Настройки голосовой активации"
+        android:icon="@drawable/ic_settings"
         app:showAsAction="never" />
         
     <item
-        android:id="@+id/action_chat_settings"
-        android:title="Настройки чата"
-        app:showAsAction="never" />
-        
-    <item
-        android:id="@+id/action_contact_relations"
-        android:title="Управление контактами"
+        android:id="@+id/action_weather_settings"
+        android:title="@string/weather_settings"
+        android:icon="@drawable/ic_settings"
         app:showAsAction="never" />
         
     <item
         android:id="@+id/action_accessibility_settings"
         android:title="Настройки доступности"
+        android:icon="@drawable/ic_accessibility"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_chat_settings"
+        android:title="Настройки диалога"
+        android:icon="@drawable/ic_settings"
+        app:showAsAction="never" />
+        
+    <item
+        android:id="@+id/action_contact_relations"
+        android:title="Управление контактами"
+        android:icon="@drawable/ic_contact"
         app:showAsAction="never" />
         
     <item
         android:id="@+id/action_about_me"
         android:title="О себе"
+        android:icon="@drawable/ic_info"
         app:showAsAction="never" />
 </menu> 

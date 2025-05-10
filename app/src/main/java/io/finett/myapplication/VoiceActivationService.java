@@ -252,29 +252,11 @@ public class VoiceActivationService extends Service {
     private void initializeSpeechRecognizer() {
         try {
             if (speechRecognizer != null) {
-                try {
-                    speechRecognizer.destroy();
-                } catch (Exception e) {
-                    Log.e(TAG, "Error destroying old speech recognizer", e);
-                }
-                speechRecognizer = null;
+                speechRecognizer.destroy();
             }
             
-            // Проверяем, доступно ли распознавание речи на устройстве
-            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                Log.e(TAG, "Speech recognition is not available on this device!");
-                return;
-            }
-            
-            Log.d(TAG, "Creating new SpeechRecognizer instance");
+            Log.d(TAG, "Initializing speech recognizer");
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-            
-            // Проверяем, создался ли объект
-            if (speechRecognizer == null) {
-                Log.e(TAG, "Failed to create SpeechRecognizer instance");
-                return;
-            }
-            
             speechRecognizer.setRecognitionListener(new RecognitionListener() {
                 @Override
                 public void onReadyForSpeech(Bundle params) {
@@ -284,15 +266,13 @@ public class VoiceActivationService extends Service {
     
                 @Override
                 public void onBeginningOfSpeech() {
-                    Log.d(TAG, "Speech beginning");
+                    Log.d(TAG, "Speech started");
                 }
     
                 @Override
                 public void onRmsChanged(float rmsdB) {
-                    // Отображаем уровень громкости для диагностики работы микрофона
-                    if (rmsdB > 0) {
-                        Log.v(TAG, "RMS changed: " + rmsdB);
-                    }
+                    // Здесь можно отображать уровень громкости, если нужно
+                    // Log.v(TAG, "RMS changed: " + rmsdB);
                 }
     
                 @Override
@@ -302,26 +282,43 @@ public class VoiceActivationService extends Service {
     
                 @Override
                 public void onEndOfSpeech() {
-                    isListening.set(false);
-                    Log.d(TAG, "Speech ended");
+                    // НЕ устанавливаем isListening в false, чтобы избежать перезапуска
+                    // Просто логируем событие
+                    Log.d(TAG, "Speech ended, но продолжаем слушать");
                 }
     
                 @Override
                 public void onError(int error) {
-                    isListening.set(false);
                     String errorMessage = getErrorMessage(error);
                     Log.e(TAG, "Speech recognition error: " + errorMessage + " (code " + error + ")");
                     
-                    // Более длительная задержка для некоторых типов ошибок
-                    int delay = 1000;
-                    if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
-                        delay = 3000;
-                    } else if (error == SpeechRecognizer.ERROR_NETWORK || 
-                               error == SpeechRecognizer.ERROR_NETWORK_TIMEOUT) {
-                        delay = 5000;
+                    // Перезапускаем распознавание только при критических ошибках
+                    if (error == SpeechRecognizer.ERROR_CLIENT || 
+                        error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS ||
+                        error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                        
+                        isListening.set(false);
+                        
+                        // Используем разные задержки в зависимости от типа ошибки
+                        int delay = 1000;
+                        if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                            delay = 3000;
+                        }
+                        
+                        Log.d(TAG, "Перезапуск распознавания через " + delay + " мс");
+                        handler.removeCallbacks(restartRecognition);
+                        handler.postDelayed(restartRecognition, delay);
+                    } else {
+                        // Для других ошибок (особенно ERROR_SPEECH_TIMEOUT и ERROR_NO_MATCH)
+                        // продолжаем слушать без перезапуска распознавания
+                        Log.d(TAG, "Продолжаем слушать без перезапуска распознавания");
+                        
+                        // Но всё же проверяем, активно ли распознавание
+                        if (!isListening.get()) {
+                            handler.removeCallbacks(restartRecognition);
+                            handler.postDelayed(restartRecognition, 300);
+                        }
                     }
-                    
-                    handler.postDelayed(restartRecognition, delay);
                 }
     
                 @Override
@@ -337,9 +334,13 @@ public class VoiceActivationService extends Service {
                         Log.d(TAG, "No recognition results");
                     }
                     
-                    // Restart recognition immediately
-                    handler.removeCallbacks(restartRecognition);
-                    handler.post(restartRecognition);
+                    // Не перезапускаем распознавание, а продолжаем слушать
+                    // Нужно лишь проверить, если вдруг распознавание остановилось
+                    if (!isListening.get()) {
+                        Log.d(TAG, "Распознавание остановилось, перезапускаем...");
+                        handler.removeCallbacks(restartRecognition);
+                        handler.postDelayed(restartRecognition, 300);
+                    }
                 }
     
                 @Override
@@ -417,8 +418,23 @@ public class VoiceActivationService extends Service {
             if (!isListening.get()) {
                 if (SpeechRecognizer.isRecognitionAvailable(this)) {
                     Log.d(TAG, "Starting speech recognition");
+                    
+                    // Настраиваем распознаватель на непрерывную работу
+                    recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+                    
+                    // Увеличиваем интервалы тишины перед завершением распознавания
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10000);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10000);
+                    recognizerIntent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 10000);
+                    
                     speechRecognizer.startListening(recognizerIntent);
-                    Log.d(TAG, "Voice recognition started");
+                    isListening.set(true);
+                    Log.d(TAG, "Voice recognition started в непрерывном режиме");
                 } else {
                     Log.e(TAG, "Speech recognition is not available");
                 }
@@ -433,7 +449,7 @@ public class VoiceActivationService extends Service {
                 Log.d(TAG, "Reinitializing speech recognizer");
                 speechRecognizer = null;
                 initializeSpeechRecognizer();
-                handler.postDelayed(restartRecognition, 3000);
+                handler.postDelayed(restartRecognition, 1000);
             } catch (Exception e2) {
                 Log.e(TAG, "Error reinitializing speech recognizer", e2);
             }
@@ -506,8 +522,14 @@ public class VoiceActivationService extends Service {
     private void processWakePhrase() {
         try {
             Log.d(TAG, "Wake phrase detected! Processing...");
-            // Останавливаем распознавание на короткое время
-            stopVoiceRecognition();
+            
+            // НЕ останавливаем распознавание, а просто ставим флаг
+            // Это позволит продолжить слушать после обработки
+            if (speechRecognizer != null) {
+                // Только временно останавливаем, чтобы не мешать другим компонентам
+                speechRecognizer.cancel();
+                isListening.set(false);
+            }
             
             handler.post(() -> {
                 try {
@@ -561,14 +583,14 @@ public class VoiceActivationService extends Service {
                     // Запускаем активность
                     startActivity(intent);
                     
-                    // Полностью останавливаем сервис, чтобы не было конфликта с микрофоном в VoiceChatActivity
+                    // Если открываем голосовой чат, останавливаем сервис, чтобы не конфликтовать с микрофоном
                     if (openVoiceChat) {
                         stopSelf();
                     } else {
                         // Если не открываем голосовой чат, перезапускаем распознавание через 3 секунды
                         handler.postDelayed(() -> {
                             try {
-                                initializeSpeechRecognizer();
+                                // Просто перезапускаем слушатель без пересоздания распознавателя
                                 startVoiceRecognition();
                             } catch (Exception ex) {
                                 Log.e(TAG, "Error restarting voice recognition", ex);
@@ -580,7 +602,6 @@ public class VoiceActivationService extends Service {
                     // Восстанавливаем распознавание в случае ошибки
                     handler.postDelayed(() -> {
                         try {
-                            initializeSpeechRecognizer();
                             startVoiceRecognition();
                         } catch (Exception ex) {
                             Log.e(TAG, "Error restarting voice recognition after error", ex);

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="system_assistant"
+        android:enabled="true"
+        android:icon="@drawable/ic_assistant"
+        android:shortcutShortLabel="@string/app_name"
+        android:shortcutLongLabel="@string/app_name">
+        <intent
+            android:action="android.intent.action.SYSTEM_ASSIST"
+            android:targetPackage="io.finett.myapplication"
+            android:targetClass="io.finett.myapplication.SystemAssistantActivity" />
+    </shortcut>
+</shortcuts> 

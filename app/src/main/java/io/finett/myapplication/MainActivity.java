@@ -71,6 +71,8 @@ import retrofit2.Callback;
 import retrofit2.Response;
 import io.finett.myapplication.base.BaseAccessibilityActivity;
 import com.google.gson.Gson;
+// Используем правильный путь к AssistantLauncher
+// import io.finett.myapplication.util.AssistantLauncher;
 
 public class MainActivity extends BaseAccessibilityActivity implements 
         ChatsAdapter.OnChatClickListener, 
@@ -103,6 +105,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private AccessibilityManager accessibilityManager;
     private BroadcastReceiver settingsReceiver;
     private WeatherService weatherService;
+    private BroadcastReceiver assistantLaunchReceiver;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -170,6 +173,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         // Check for wake phrase intent
         handleIntent(getIntent());
+
+        // Регистрируем слушателя событий запуска ассистента
+        registerAssistantLaunchListener();
     }
 
     private boolean checkRequiredPermissions() {
@@ -1084,6 +1090,12 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
     @Override
     protected void onDestroy() {
+        // Отменяем регистрацию слушателя запуска ассистента
+        if (assistantLaunchReceiver != null) {
+            io.finett.myapplication.AssistantMonitor.unregisterAssistantListener(this, assistantLaunchReceiver);
+            assistantLaunchReceiver = null;
+        }
+        
         super.onDestroy();
         if (settingsReceiver != null) {
             unregisterReceiver(settingsReceiver);
@@ -1178,8 +1190,51 @@ public class MainActivity extends BaseAccessibilityActivity implements
             }
         });
         
+        // Добавляем тестовую кнопку для запуска ассистента
+        binding.drawerLayout.addDrawerListener(new androidx.drawerlayout.widget.DrawerLayout.DrawerListener() {
+            @Override
+            public void onDrawerSlide(@NonNull android.view.View drawerView, float slideOffset) {}
+
+            @Override
+            public void onDrawerOpened(@NonNull android.view.View drawerView) {
+                // Добавляем кнопку для тестирования ассистента если её ещё нет
+                if (drawerView.findViewById(R.id.testAssistantButton) == null) {
+                    android.widget.Button testButton = new android.widget.Button(MainActivity.this);
+                    testButton.setId(R.id.testAssistantButton);
+                    testButton.setText("Тест ассистента");
+                    testButton.setOnClickListener(view -> testAssistant());
+                    
+                    // Добавляем кнопку в drawerLayout
+                    ((android.widget.LinearLayout) binding.drawerLayout.findViewById(R.id.drawerContent))
+                        .addView(testButton);
+                }
+            }
+
+            @Override
+            public void onDrawerClosed(@NonNull android.view.View drawerView) {}
+
+            @Override
+            public void onDrawerStateChanged(int newState) {}
+        });
+        
         // Обновляем состояние кнопки
         updateVoiceActivationButtonState();
+    }
+    
+    // Метод для тестирования запуска ассистента
+    private void testAssistant() {
+        try {
+            Log.d("MainActivity", "Тестирование запуска ассистента");
+            
+            // Запуск через класс AssistantLauncher
+            io.finett.myapplication.AssistantLauncher.launchSystemAssistant(this);
+            
+            // Закрываем drawer
+            binding.drawerLayout.closeDrawers();
+        } catch (Exception e) {
+            Log.e("MainActivity", "Ошибка при запуске ассистента: " + e.getMessage(), e);
+            Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     @Override
@@ -1338,29 +1393,33 @@ public class MainActivity extends BaseAccessibilityActivity implements
     
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
+        int itemId = item.getItemId();
         
-        if (id == R.id.action_weather_settings) {
-            Intent intent = new Intent(this, WeatherSettingsActivity.class);
-            startActivity(intent);
+        if (itemId == R.id.action_assistant_settings) {
+            // Открытие настроек системного ассистента
+            openAssistantSettings();
             return true;
-        } else if (id == R.id.action_voice_activation_settings) {
-            Intent intent = new Intent(this, VoiceActivationSettingsActivity.class);
-            startActivity(intent);
-            return true;
-        } else if (id == R.id.action_chat_settings) {
-            showChatSettingsDialog();
-            return true;
-        } else if (id == R.id.action_contact_relations) {
-            Intent intent = new Intent(this, io.finett.myapplication.util.ContactRelationActivity.class);
-            startActivity(intent);
-            return true;
-        } else if (id == R.id.action_accessibility_settings) {
+        } else if (itemId == R.id.action_accessibility_settings) {
             Intent intent = new Intent(this, AccessibilitySettingsActivity.class);
             startActivity(intent);
             return true;
-        } else if (id == R.id.action_about_me) {
+        } else if (itemId == R.id.action_chat_settings) {
+            showChatSettingsDialog();
+            return true;
+        } else if (itemId == R.id.action_contact_relations) {
+            Intent intent = new Intent(this, io.finett.myapplication.util.ContactRelationActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (itemId == R.id.action_about_me) {
             Intent intent = new Intent(this, AboutMeActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (itemId == R.id.action_voice_activation_settings) {
+            Intent intent = new Intent(this, VoiceActivationSettingsActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (itemId == R.id.action_weather_settings) {
+            Intent intent = new Intent(this, WeatherSettingsActivity.class);
             startActivity(intent);
             return true;
         }
@@ -1413,5 +1472,69 @@ public class MainActivity extends BaseAccessibilityActivity implements
         }
         
         return apiKey;
+    }
+
+    /**
+     * Открывает системные настройки для выбора приложения-ассистента по умолчанию
+     */
+    private void openAssistantSettings() {
+        try {
+            // Отображаем статистику запусков ассистента
+            int launchCount = io.finett.myapplication.AssistantSettings.getLaunchCount(this);
+            long lastLaunchTime = io.finett.myapplication.AssistantSettings.getLastLaunchTime(this);
+            
+            String lastLaunchStr = "Никогда";
+            if (lastLaunchTime > 0) {
+                java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("dd.MM.yyyy HH:mm:ss", java.util.Locale.getDefault());
+                lastLaunchStr = sdf.format(new java.util.Date(lastLaunchTime));
+            }
+            
+            Toast.makeText(this, 
+                    "Статистика ассистента:\n" +
+                    "Количество запусков: " + launchCount + "\n" +
+                    "Последний запуск: " + lastLaunchStr,
+                    Toast.LENGTH_LONG).show();
+            
+            // Для Android 5.0 (API 21) и выше
+            Intent intent = new Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS);
+            startActivity(intent);
+        } catch (Exception e) {
+            Log.e("MainActivity", "Ошибка при открытии настроек ассистента", e);
+            try {
+                // Альтернативный вариант - открыть общие настройки приложений
+                Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_SETTINGS);
+                startActivity(intent);
+                
+                Toast.makeText(this, 
+                        "Найдите Алан в списке приложений и установите его как ассистент по умолчанию",
+                        Toast.LENGTH_LONG).show();
+            } catch (Exception e2) {
+                Log.e("MainActivity", "Не удалось открыть настройки приложений", e2);
+                Toast.makeText(this, 
+                        "Не удалось открыть настройки. Перейдите в Настройки -> Приложения -> Приложения по умолчанию -> Цифровой помощник",
+                        Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    /**
+     * Регистрирует слушателя событий запуска ассистента
+     */
+    private void registerAssistantLaunchListener() {
+        // Регистрируем слушателя через AssistantMonitor
+        assistantLaunchReceiver = io.finett.myapplication.AssistantMonitor.registerAssistantListener(
+                this, 
+                () -> {
+                    // Обработка события запуска ассистента
+                    Log.d("MainActivity", "Получено уведомление о запуске ассистента");
+                    
+                    // Показываем короткое сообщение
+                    runOnUiThread(() -> {
+                        Toast.makeText(
+                                MainActivity.this, 
+                                "Ассистент запущен!", 
+                                Toast.LENGTH_SHORT).show();
+                    });
+                });
     }
 }
