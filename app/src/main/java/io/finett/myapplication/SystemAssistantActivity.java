@@ -85,6 +85,18 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         boolean isFromSystemGesture = AssistantLauncher.isLaunchedFromSystemGesture(getIntent());
         Log.d(TAG, "Запущено через системный жест свайпа: " + isFromSystemGesture);
         
+        // Проверяем, нужно ли автоматически запустить голосовой чат
+        boolean shouldLaunchVoiceChat = AssistantSettings.isAutoLaunchVoiceChatEnabled(this);
+        
+        // Если настройка включена и активность запущена через системный жест,
+        // сразу запускаем голосовой чат и завершаем эту активность
+        if (shouldLaunchVoiceChat && isFromSystemGesture) {
+            Log.d(TAG, "Автоматический запуск голосового чата");
+            startVoiceChatActivity();
+            finish();
+            return;
+        }
+        
         // Настраиваем окно - полностью прозрачное с фиолетовой рамкой
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         
@@ -232,6 +244,25 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         
         // Настраиваем обработчик нажатия на кнопку закрытия
         closeButton.setOnClickListener(v -> finish());
+        
+        // Добавляем обработчик долгого нажатия на кнопку микрофона для открытия настроек
+        systemAssistantMic.setOnLongClickListener(v -> {
+            openAssistantSettings();
+            return true;
+        });
+    }
+    
+    /**
+     * Открывает настройки системного ассистента
+     */
+    private void openAssistantSettings() {
+        try {
+            Intent intent = new Intent(this, AssistantSettingsActivity.class);
+            startActivity(intent);
+            Log.d(TAG, "Открыты настройки ассистента");
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при открытии настроек ассистента: " + e.getMessage(), e);
+        }
     }
     
     /**
@@ -674,6 +705,73 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             handler.postDelayed(() -> finish(), 800);
             return true;
         }
+
+        // Команда для запуска полного голосового чата
+        if (lowercaseCommand.contains("открой голосовой чат") || 
+            lowercaseCommand.contains("открыть голосовой чат") ||
+            lowercaseCommand.contains("полный чат") ||
+            lowercaseCommand.contains("полноэкранный режим") ||
+            lowercaseCommand.contains("запусти алана") ||
+            lowercaseCommand.contains("запустить алана") ||
+            lowercaseCommand.contains("открой алана") ||
+            lowercaseCommand.contains("open voice chat") ||
+            lowercaseCommand.contains("full screen mode")) {
+            
+            Log.d(TAG, "Запуск голосового чата в полноэкранном режиме");
+            
+            // Короткое сообщение
+            String responseText = "Открываю полноэкранный режим";
+            
+            // Добавляем сообщение в интерфейс
+            AssistantMessage responseMessage = new AssistantMessage(responseText, "Система", false);
+            messageAdapter.addMessage(responseMessage);
+            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+            
+            // Произносим сообщение
+            if (textToSpeech != null) {
+                HashMap<String, String> params = new HashMap<>();
+                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "fullscreen_mode");
+                textToSpeech.speak(responseText, TextToSpeech.QUEUE_FLUSH, params);
+            }
+            
+            // Запускаем полноэкранный голосовой чат
+            startVoiceChatActivity();
+            
+            // Закрываем системного ассистента с задержкой, чтобы успеть произнести сообщение
+            handler.postDelayed(() -> finish(), 800);
+            return true;
+        }
+        
+        // Команда для открытия настроек ассистента
+        if (lowercaseCommand.contains("настройки ассистента") ||
+            lowercaseCommand.contains("открой настройки") ||
+            lowercaseCommand.contains("открыть настройки") ||
+            lowercaseCommand.contains("параметры ассистента") ||
+            lowercaseCommand.contains("assistant settings") ||
+            lowercaseCommand.contains("open settings")) {
+            
+            Log.d(TAG, "Открытие настроек ассистента");
+            
+            // Короткое сообщение
+            String responseText = "Открываю настройки ассистента";
+            
+            // Добавляем сообщение в интерфейс
+            AssistantMessage responseMessage = new AssistantMessage(responseText, "Система", false);
+            messageAdapter.addMessage(responseMessage);
+            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+            
+            // Произносим сообщение
+            if (textToSpeech != null) {
+                HashMap<String, String> params = new HashMap<>();
+                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "settings");
+                textToSpeech.speak(responseText, TextToSpeech.QUEUE_FLUSH, params);
+            }
+            
+            // Открываем настройки
+            openAssistantSettings();
+            
+            return true;
+        }
         
         // Команда для показа справки
         if (lowercaseCommand.contains("что ты умеешь") || 
@@ -688,6 +786,7 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                     "- Показывать время, дату\n" +
                     "- Открывать веб-сайты\n" +
                     "- Звонить контактам\n" +
+                    "- Открыть полноэкранный режим\n" +
                     "- И многое другое\n\n" +
                     "Просто скажите, что нужно сделать!";
             
@@ -760,6 +859,29 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             }
         } catch (Exception e) {
             Log.e(TAG, "Ошибка при открытии пункта управления: " + e.getMessage(), e);
+        }
+    }
+    
+    /**
+     * Запускает активность полноэкранного голосового чата
+     */
+    private void startVoiceChatActivity() {
+        try {
+            Intent intent = new Intent(this, VoiceChatActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            startActivity(intent);
+            Log.d(TAG, "VoiceChatActivity запущена успешно");
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при запуске VoiceChatActivity: " + e.getMessage(), e);
+            
+            // Показываем сообщение об ошибке, если VoiceChatActivity не может быть запущена
+            AssistantMessage errorMessage = new AssistantMessage(
+                    "Не удалось запустить голосовой чат. Пожалуйста, попробуйте позже.", 
+                    "Система", 
+                    false);
+            messageAdapter.addMessage(errorMessage);
+            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
         }
     }
     

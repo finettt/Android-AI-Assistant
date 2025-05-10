@@ -18,6 +18,7 @@ public class AssistantSettings {
     private static final String KEY_LAUNCH_COUNT = "launch_count";
     private static final String KEY_LAST_LAUNCH_TIME = "last_launch_time";
     private static final String KEY_AUTO_VOLUME_REDUCTION = "auto_volume_reduction";
+    private static final String KEY_AUTO_LAUNCH_VOICE_CHAT = "auto_launch_voice_chat";
     
     /**
      * Проверяет, включены ли анимации в ассистенте
@@ -204,6 +205,46 @@ public class AssistantSettings {
             editor.apply();
         } catch (Exception e) {
             Log.e(TAG, "Ошибка при сохранении настройки автоматического снижения громкости", e);
+        }
+    }
+    
+    /**
+     * Проверяет, включен ли автоматический запуск голосового чата при запуске системного ассистента
+     * 
+     * @param context Контекст приложения
+     * @return true, если автоматический запуск голосового чата включен
+     */
+    public static boolean isAutoLaunchVoiceChatEnabled(Context context) {
+        if (context == null) {
+            return false; // По умолчанию отключено
+        }
+        
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            return prefs.getBoolean(KEY_AUTO_LAUNCH_VOICE_CHAT, false);
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при получении настройки автоматического запуска голосового чата", e);
+            return false;
+        }
+    }
+    
+    /**
+     * Устанавливает, включен ли автоматический запуск голосового чата при запуске системного ассистента
+     * 
+     * @param context Контекст приложения
+     * @param enabled true, если автоматический запуск голосового чата должен быть включен
+     */
+    public static void setAutoLaunchVoiceChatEnabled(Context context, boolean enabled) {
+        if (context == null) {
+            return;
+        }
+        
+        try {
+            SharedPreferences.Editor editor = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit();
+            editor.putBoolean(KEY_AUTO_LAUNCH_VOICE_CHAT, enabled);
+            editor.apply();
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при сохранении настройки автоматического запуска голосового чата", e);
         }
     }
 } 
