@@ -257,11 +257,11 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
      */
     private void openAssistantSettings() {
         try {
-            Intent intent = new Intent(this, AssistantSettingsActivity.class);
-            startActivity(intent);
-            Log.d(TAG, "Открыты настройки ассистента");
+            // Вместо открытия отдельной активности настроек запускаем полноэкранный голосовой чат
+            startVoiceChatActivity();
+            Log.d(TAG, "Запущен голосовой чат вместо настроек ассистента");
         } catch (Exception e) {
-            Log.e(TAG, "Ошибка при открытии настроек ассистента: " + e.getMessage(), e);
+            Log.e(TAG, "Ошибка при открытии голосового чата: " + e.getMessage(), e);
         }
     }
     
@@ -750,10 +750,10 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             lowercaseCommand.contains("assistant settings") ||
             lowercaseCommand.contains("open settings")) {
             
-            Log.d(TAG, "Открытие настроек ассистента");
+            Log.d(TAG, "Запуск голосового чата вместо настроек ассистента");
             
             // Короткое сообщение
-            String responseText = "Открываю настройки ассистента";
+            String responseText = "Открываю полноэкранный режим";
             
             // Добавляем сообщение в интерфейс
             AssistantMessage responseMessage = new AssistantMessage(responseText, "Система", false);
@@ -767,9 +767,11 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                 textToSpeech.speak(responseText, TextToSpeech.QUEUE_FLUSH, params);
             }
             
-            // Открываем настройки
+            // Открываем голосовой чат
             openAssistantSettings();
             
+            // Закрываем системного ассистента с задержкой, чтобы успеть произнести сообщение
+            handler.postDelayed(() -> finish(), 800);
             return true;
         }
         

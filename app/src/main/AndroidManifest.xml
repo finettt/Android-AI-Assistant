@@ -177,13 +177,6 @@
                 android:value=".MainActivity" />
         </activity>
 
-        <activity
-            android:name=".AssistantSettingsActivity"
-            android:label="Настройки ассистента"
-            android:parentActivityName=".MainActivity"
-            android:theme="@style/Theme.MyApplication"
-            android:exported="false" />
-
         <service
             android:name=".VoiceActivationService"
             android:enabled="true"
