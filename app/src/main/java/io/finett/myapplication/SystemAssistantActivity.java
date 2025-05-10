@@ -46,7 +46,7 @@ import retrofit2.Response;
 /**
  * Активность системного ассистента с прозрачным фоном и фиолетовой рамкой
  */
-public class SystemAssistantActivity extends AppCompatActivity implements TextToSpeech.OnInitListener, CommandProcessor.OnCommandProcessedListener {
+public class SystemAssistantActivity extends AppCompatActivity implements TextToSpeech.OnInitListener, CommandProcessor.OnCommandProcessedListener, RecognitionListener {
     private static final String TAG = "SystemAssistantActivity";
     private static final int REQUEST_SPEECH_RECOGNITION = 100;
     private static final String PREFS_NAME = "ChatAppPrefs";
@@ -74,6 +74,24 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
     private SpeechRecognizer speechRecognizer;
     
     private VolumeManager volumeManager;
+    
+    // Добавляем новые поля, аналогичные тем, что в VoiceChatActivity
+    private boolean isListening = false;
+    private boolean isSpeaking = false;
+    private static final long SPEECH_TIMEOUT_MILLIS = 1500; // 1.5 секунды тишины для завершения
+    private boolean isProcessingSpeech = false;
+    private long lastVoiceTime = 0;
+    private AssistantMessage currentUserMessage = null;
+    
+    private final Runnable speechTimeoutRunnable = new Runnable() {
+        @Override
+        public void run() {
+            if (isListening && !isProcessingSpeech && 
+                    System.currentTimeMillis() - lastVoiceTime > SPEECH_TIMEOUT_MILLIS) {
+                stopListening();
+            }
+        }
+    };
     
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
@@ -150,6 +168,9 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         
         // Настраиваем анимации для кнопки микрофона
         setupAnimations();
+        
+        // Инициализируем SpeechRecognizer
+        initSpeechRecognizer();
         
         handler = new Handler(Looper.getMainLooper());
         autoDismissRunnable = this::finish;
@@ -607,6 +628,63 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
     }
     
     /**
+     * Инициализирует SpeechRecognizer
+     */
+    private void initSpeechRecognizer() {
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+            speechRecognizer.setRecognitionListener(this);
+            Log.d(TAG, "SpeechRecognizer инициализирован");
+        } else {
+            Log.e(TAG, "Распознавание речи недоступно на данном устройстве");
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        // Отменяем анимации
+        if (pulseAnimator != null) {
+            pulseAnimator.cancel();
+        }
+        if (rotateAnimator != null) {
+            rotateAnimator.cancel();
+        }
+        
+        // Отменяем автоматическое закрытие при уничтожении активности
+        if (handler != null && autoDismissRunnable != null) {
+            handler.removeCallbacks(autoDismissRunnable);
+        }
+        
+        // Останавливаем таймер проверки тишины
+        if (handler != null && speechTimeoutRunnable != null) {
+            handler.removeCallbacks(speechTimeoutRunnable);
+        }
+        
+        // Очищаем TextToSpeech
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
+        
+        // Очищаем CommandProcessor
+        if (commandProcessor != null) {
+            commandProcessor.cleanup();
+        }
+        
+        // Очищаем SpeechRecognizer
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+        }
+        
+        // Восстанавливаем громкость если она была снижена
+        if (volumeManager != null && volumeManager.isVolumeReduced()) {
+            volumeManager.restoreVolume();
+        }
+        
+        super.onDestroy();
+    }
+    
+    /**
      * Озвучивает текст с помощью TextToSpeech
      */
     private void speak(String text) {
@@ -615,18 +693,21 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override
                 public void onStart(String utteranceId) {
-                    // При начале речи ничего не делаем
+                    // При начале речи устанавливаем флаг
+                    isSpeaking = true;
                 }
 
                 @Override
                 public void onDone(String utteranceId) {
                     // После завершения речи запускаем новый цикл распознавания
+                    isSpeaking = false;
                     handler.post(() -> startDirectVoiceRecognition());
                 }
 
                 @Override
                 public void onError(String utteranceId) {
                     // В случае ошибки также запускаем новый цикл распознавания
+                    isSpeaking = false;
                     handler.post(() -> startDirectVoiceRecognition());
                 }
             });
@@ -928,45 +1009,6 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
     }
     
     @Override
-    protected void onDestroy() {
-        // Отменяем анимации
-        if (pulseAnimator != null) {
-            pulseAnimator.cancel();
-        }
-        if (rotateAnimator != null) {
-            rotateAnimator.cancel();
-        }
-        
-        // Отменяем автоматическое закрытие при уничтожении активности
-        if (handler != null && autoDismissRunnable != null) {
-            handler.removeCallbacks(autoDismissRunnable);
-        }
-        
-        // Очищаем TextToSpeech
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
-        }
-        
-        // Очищаем CommandProcessor
-        if (commandProcessor != null) {
-            commandProcessor.cleanup();
-        }
-        
-        // Очищаем SpeechRecognizer
-        if (speechRecognizer != null) {
-            speechRecognizer.destroy();
-        }
-        
-        // Восстанавливаем громкость если она была снижена
-        if (volumeManager != null && volumeManager.isVolumeReduced()) {
-            volumeManager.restoreVolume();
-        }
-        
-        super.onDestroy();
-    }
-    
-    @Override
     protected void onPause() {
         super.onPause();
         
@@ -997,289 +1039,286 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
 
     /**
      * Запускает голосовое распознавание напрямую через SpeechRecognizer
-     * Этот метод может работать лучше, чем запуск через активность
+     * Используя тот же подход, что и в VoiceChatActivity
      */
     private void startDirectVoiceRecognition() {
-        // Показываем анимацию прослушивания
-        if (pulseAnimator != null) {
-            pulseAnimator.setDuration(800);
-        }
+        if (isListening) return;
         
-        // Меняем текст подсказки
-        systemAssistantPromptText.setText("Слушаю...");
-        
-        // Проверяем доступность распознавания речи в отдельном потоке
-        new Thread(() -> {
-            boolean isRecognitionAvailable = SpeechRecognizer.isRecognitionAvailable(this);
+        try {
+            // Показываем анимацию прослушивания
+            if (pulseAnimator != null) {
+                pulseAnimator.setDuration(800);
+            }
             
-            // Переключаемся на UI поток для обновления интерфейса
-            runOnUiThread(() -> {
-                if (!isRecognitionAvailable) {
-                    Log.e(TAG, "Распознавание речи недоступно на данном устройстве");
-                    
-                    // Альтернативный метод распознавания через intent
-                    startVoiceRecognition();
-                    return;
-                }
-                
-                // Проверяем разрешение на запись аудио без вывода сообщения пользователю
-                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
-                    if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                        Log.e(TAG, "Отсутствует разрешение на запись аудио");
-                        
-                        // Эту ошибку нужно показать, так как нужно разрешение пользователя
-                        AssistantMessage errorMessage = new AssistantMessage(
-                                "Для работы распознавания речи необходимо разрешение на запись аудио. Пожалуйста, предоставьте это разрешение в настройках.", 
-                                "Система", 
-                                false);
-                        messageAdapter.addMessage(errorMessage);
-                        messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
-                        resetUIState();
-                        
-                        // Запрашиваем разрешение
-                        requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 1234);
-                        return;
-                    }
-                }
-                
-                // Добавляем индикатор прослушивания
-                addListeningIndicator();
-                
-                // Создаем SpeechRecognizer
-                try {
-                    // Уничтожаем старый распознаватель, если он есть
-                    if (speechRecognizer != null) {
-                        speechRecognizer.destroy();
-                    }
-                    
-                    speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-                    Log.d(TAG, "SpeechRecognizer создан успешно");
-                } catch (Exception e) {
-                    // Тихо логируем ошибку создания распознавателя
-                    Log.e(TAG, "Не удалось создать SpeechRecognizer: " + e.getMessage(), e);
-                    
-                    // Удаляем индикатор прослушивания
-                    removeListeningIndicator();
-                    
-                    // Возвращаем анимацию и текст в исходное состояние
+            // Меняем текст подсказки
+            systemAssistantPromptText.setText("Слушаю...");
+            
+            // Проверяем разрешение на запись аудио
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
+                if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    // Эту ошибку нужно показать, так как нужно разрешение пользователя
+                    AssistantMessage errorMessage = new AssistantMessage(
+                            "Для работы распознавания речи необходимо разрешение на запись аудио. Пожалуйста, предоставьте это разрешение в настройках.", 
+                            "Система", 
+                            false);
+                    messageAdapter.addMessage(errorMessage);
+                    messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
                     resetUIState();
                     
-                    // Пробуем альтернативный метод
-                    startVoiceRecognition();
+                    // Запрашиваем разрешение
+                    requestPermissions(new String[]{android.Manifest.permission.RECORD_AUDIO}, 1234);
                     return;
                 }
-                
-                // Создаем слушатель результатов распознавания
-                speechRecognizer.setRecognitionListener(new RecognitionListener() {
-                    @Override
-                    public void onReadyForSpeech(Bundle params) {
-                        Log.d(TAG, "Готов к распознаванию речи");
-                    }
-        
-                    @Override
-                    public void onBeginningOfSpeech() {
-                        Log.d(TAG, "Начало речи");
-                    }
-        
-                    @Override
-                    public void onRmsChanged(float rmsdB) {
-                        // Можно использовать для отображения уровня громкости
-                    }
-        
-                    @Override
-                    public void onBufferReceived(byte[] buffer) {
-                        Log.d(TAG, "Получен буфер");
-                    }
-        
-                    @Override
-                    public void onEndOfSpeech() {
-                        Log.d(TAG, "Конец речи");
-                    }
-        
-                    @Override
-                    public void onError(int error) {
-                        String errorMessage;
-                        boolean shouldRetry = true;
-                        boolean showErrorMessage = false; // По умолчанию не показываем сообщения об ошибках
-                        
-                        switch (error) {
-                            case SpeechRecognizer.ERROR_AUDIO:
-                                errorMessage = "Ошибка записи аудио";
-                                break;
-                            case SpeechRecognizer.ERROR_CLIENT:
-                                errorMessage = "Ошибка клиента";
-                                break;
-                            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-                                errorMessage = "Недостаточно прав для распознавания речи";
-                                shouldRetry = false;
-                                showErrorMessage = true; // Эту ошибку показываем, так как нужны разрешения
-                                break;
-                            case SpeechRecognizer.ERROR_NETWORK:
-                                errorMessage = "Ошибка сети";
-                                // Пробуем использовать автономное распознавание при ошибке сети
-                                startVoiceRecognition();
-                                shouldRetry = false;
-                                break;
-                            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
-                                errorMessage = "Таймаут сети";
-                                break;
-                            case SpeechRecognizer.ERROR_NO_MATCH:
-                                errorMessage = "Речь не распознана";
-                                // При ошибке распознавания переключаемся на intent-based метод
-                                startVoiceRecognition();
-                                shouldRetry = false;
-                                break;
-                            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                                errorMessage = "Распознаватель занят";
-                                handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
-                                shouldRetry = false;
-                                break;
-                            case SpeechRecognizer.ERROR_SERVER:
-                                errorMessage = "Ошибка сервера распознавания";
-                                // При ошибке сервера переключаемся на intent-based метод
-                                startVoiceRecognition();
-                                shouldRetry = false;
-                                break;
-                            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                                errorMessage = "Таймаут распознавания речи";
-                                break;
-                            default:
-                                errorMessage = "Ошибка распознавания речи (код " + error + ")";
-                                break;
-                        }
-                        
-                        // Логируем ошибку, но не показываем пользователю
-                        Log.e(TAG, "Ошибка распознавания речи: " + errorMessage);
-                        
-                        // Удаляем индикатор прослушивания
-                        removeListeningIndicator();
-                        
-                        // Показываем сообщение об ошибке в UI только если это критическая ошибка
-                        if (showErrorMessage) {
-                            AssistantMessage assistantErrorMessage = new AssistantMessage(
-                                    "Ошибка распознавания речи: " + errorMessage, 
-                                    "Ошибка", 
-                                    false);
-                            messageAdapter.addMessage(assistantErrorMessage);
-                            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
-                        }
-                        
-                        // Возвращаем анимацию и текст в исходное состояние
-                        resetUIState();
-                        
-                        // Восстанавливаем громкость
-                        volumeManager.restoreVolume();
-                        
-                        // Повторяем попытку распознавания через небольшую задержку
-                        if (shouldRetry) {
-                            handler.postDelayed(() -> startDirectVoiceRecognition(), 2000);
-                        }
-                    }
-        
-                    @Override
-                    public void onResults(Bundle results) {
-                        // Удаляем индикатор прослушивания
-                        removeListeningIndicator();
-                        
-                        // Возвращаем анимацию и текст в исходное состояние
-                        resetUIState();
-                        
-                        ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        if (matches != null && !matches.isEmpty()) {
-                            String recognizedText = matches.get(0);
-                            Log.d(TAG, "Распознанный текст: " + recognizedText);
-                            
-                            // Проверяем, не пустой ли текст
-                            if (recognizedText.trim().isEmpty()) {
-                                Log.d(TAG, "Получен пустой текст, перезапускаем распознавание");
-                                handler.postDelayed(() -> startDirectVoiceRecognition(), 500);
-                                return;
-                            }
-                            
-                            // Добавляем сообщение пользователя
-                            AssistantMessage userMessage = new AssistantMessage(
-                                    recognizedText, 
-                                    "Вы", 
-                                    true);
-                            messageAdapter.addMessage(userMessage);
-                            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
-                            
-                            // Проверяем, является ли команда специфичной для ассистента
-                            if (processAssistantSpecificCommand(recognizedText)) {
-                                // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
-                            }
-                            // Проверяем, является ли команда системной
-                            else if (commandProcessor != null && commandProcessor.processCommand(recognizedText)) {
-                                // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
-                            } else {
-                                // Если это не системная команда, отправляем запрос к API
-                                sendMessageToApi(recognizedText);
-                            }
-                        } else {
-                            Log.e(TAG, "Результаты распознавания пусты");
-                            handler.postDelayed(() -> startDirectVoiceRecognition(), 500);
-                        }
-                        
-                        // Восстанавливаем громкость
-                        volumeManager.restoreVolume();
-                    }
-        
-                    @Override
-                    public void onPartialResults(Bundle partialResults) {
-                        ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                        if (matches != null && !matches.isEmpty()) {
-                            String text = matches.get(0);
-                            Log.d(TAG, "Промежуточный результат: " + text);
-                            
-                            // Обновляем текст индикатора прослушивания, чтобы показать пользователю,
-                            // что его речь распознается
-                            if (listeningMessage != null && !text.trim().isEmpty()) {
-                                listeningMessage.setMessage("" + text);
-                                messageAdapter.notifyDataSetChanged();
-                            }
-                        }
-                    }
-        
-                    @Override
-                    public void onEvent(int eventType, Bundle params) {
-                        Log.d(TAG, "Событие распознавания: " + eventType);
-                    }
-                });
-                
-                // Настраиваем параметры распознавания
-                Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
-                intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ru-RU");
-                intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
-                intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
-                intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-                
-                // Повышаем чувствительность распознавания для первого запуска
-                intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 500);
-                intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000);
-                intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
-                
-                // Начинаем распознавание
-                try {
-                    speechRecognizer.startListening(intent);
-                    Log.d(TAG, "Распознавание запущено успешно");
-                } catch (Exception e) {
-                    Log.e(TAG, "Ошибка при запуске распознавания: " + e.getMessage(), e);
-                    
-                    // Удаляем индикатор прослушивания
-                    removeListeningIndicator();
-                    
-                    // Возвращаем анимацию и текст в исходное состояние
-                    resetUIState();
-                    
-                    // Пробуем альтернативный метод
-                    startVoiceRecognition();
-                }
-            });
-        }).start();
+            }
+            
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 1000L);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1000L);
+            
+            // Инициализируем SpeechRecognizer если нужно
+            if (speechRecognizer == null) {
+                initSpeechRecognizer();
+            }
+            
+            // Проверяем, был ли успешно инициализирован SpeechRecognizer
+            if (speechRecognizer == null) {
+                Log.e(TAG, "Не удалось инициализировать SpeechRecognizer");
+                // Пробуем запустить через интент
+                startVoiceRecognition();
+                return;
+            }
+            
+            // Добавляем индикатор прослушивания
+            addListeningIndicator();
+            
+            // Снижаем громкость для лучшего распознавания
+            if (volumeManager != null) {
+                volumeManager.reduceVolumeForRecognition();
+            }
+            
+            // Запускаем распознавание
+            speechRecognizer.startListening(intent);
+            isListening = true;
+            isProcessingSpeech = false;
+            lastVoiceTime = System.currentTimeMillis();
+            
+            // Запускаем таймер для проверки тишины
+            handler.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при запуске распознавания: " + e.getMessage(), e);
+            
+            // Удаляем индикатор прослушивания
+            removeListeningIndicator();
+            
+            // Возвращаем анимацию и текст в исходное состояние
+            resetUIState();
+            
+            // Пробуем альтернативный метод
+            startVoiceRecognition();
+        }
     }
     
+    /**
+     * Останавливает распознавание речи
+     */
+    private void stopListening() {
+        if (!isListening) return;
+        
+        handler.removeCallbacks(speechTimeoutRunnable);
+        
+        if (speechRecognizer != null) {
+            speechRecognizer.stopListening();
+        }
+        
+        isListening = false;
+        isProcessingSpeech = false;
+        
+        // Возвращаем анимацию и текст в исходное состояние
+        resetUIState();
+    }
+    
+    // Реализация методов интерфейса RecognitionListener
+    
+    @Override
+    public void onReadyForSpeech(Bundle params) {
+        Log.d(TAG, "Готов к распознаванию речи");
+    }
+
+    @Override
+    public void onBeginningOfSpeech() {
+        Log.d(TAG, "Начало речи");
+        isProcessingSpeech = true;
+        lastVoiceTime = System.currentTimeMillis();
+    }
+
+    @Override
+    public void onRmsChanged(float rmsdB) {
+        // Обновляем время последней активности голоса
+        if (rmsdB > 1.0f) {
+            lastVoiceTime = System.currentTimeMillis();
+        }
+    }
+
+    @Override
+    public void onBufferReceived(byte[] buffer) {
+        Log.d(TAG, "Получен буфер");
+    }
+
+    @Override
+    public void onEndOfSpeech() {
+        Log.d(TAG, "Конец речи");
+        isProcessingSpeech = false;
+    }
+
+    @Override
+    public void onError(int error) {
+        String errorMessage;
+        boolean shouldRetry = true;
+        boolean showErrorMessage = false;
+        
+        switch (error) {
+            case SpeechRecognizer.ERROR_AUDIO:
+                errorMessage = "Ошибка записи аудио";
+                break;
+            case SpeechRecognizer.ERROR_CLIENT:
+                errorMessage = "Ошибка клиента";
+                break;
+            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                errorMessage = "Недостаточно прав для распознавания речи";
+                shouldRetry = false;
+                showErrorMessage = true;
+                break;
+            case SpeechRecognizer.ERROR_NETWORK:
+                errorMessage = "Ошибка сети";
+                break;
+            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                errorMessage = "Таймаут сети";
+                break;
+            case SpeechRecognizer.ERROR_NO_MATCH:
+                errorMessage = "Речь не распознана";
+                break;
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                errorMessage = "Распознаватель занят";
+                handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                shouldRetry = false;
+                break;
+            case SpeechRecognizer.ERROR_SERVER:
+                errorMessage = "Ошибка сервера распознавания";
+                break;
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                errorMessage = "Таймаут распознавания речи";
+                break;
+            default:
+                errorMessage = "Ошибка распознавания речи (код " + error + ")";
+                break;
+        }
+        
+        // Логируем ошибку
+        Log.e(TAG, "Ошибка распознавания речи: " + errorMessage);
+        
+        // Удаляем индикатор прослушивания
+        removeListeningIndicator();
+        
+        // Возвращаем анимацию и текст в исходное состояние
+        resetUIState();
+        
+        // Показываем сообщение об ошибке только если это критическая ошибка
+        if (showErrorMessage) {
+            AssistantMessage assistantErrorMessage = new AssistantMessage(
+                    "Ошибка распознавания речи: " + errorMessage, 
+                    "Ошибка", 
+                    false);
+            messageAdapter.addMessage(assistantErrorMessage);
+            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+        }
+        
+        // Восстанавливаем громкость
+        if (volumeManager != null) {
+            volumeManager.restoreVolume();
+        }
+        
+        // Повторяем попытку распознавания через задержку
+        if (shouldRetry) {
+            handler.postDelayed(() -> startDirectVoiceRecognition(), 2000);
+        }
+    }
+
+    @Override
+    public void onResults(Bundle results) {
+        // Удаляем индикатор прослушивания
+        removeListeningIndicator();
+        
+        // Возвращаем анимацию и текст в исходное состояние
+        resetUIState();
+        
+        ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches != null && !matches.isEmpty()) {
+            String recognizedText = matches.get(0);
+            Log.d(TAG, "Распознанный текст: " + recognizedText);
+            
+            // Проверяем, не пустой ли текст
+            if (recognizedText.trim().isEmpty()) {
+                Log.d(TAG, "Получен пустой текст, перезапускаем распознавание");
+                handler.postDelayed(() -> startDirectVoiceRecognition(), 500);
+                return;
+            }
+            
+            // Добавляем сообщение пользователя
+            AssistantMessage userMessage = new AssistantMessage(
+                    recognizedText, 
+                    "Вы", 
+                    true);
+            messageAdapter.addMessage(userMessage);
+            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+            
+            // Проверяем, является ли команда специфичной для ассистента
+            if (processAssistantSpecificCommand(recognizedText)) {
+                // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
+            }
+            // Проверяем, является ли команда системной
+            else if (commandProcessor != null && commandProcessor.processCommand(recognizedText)) {
+                // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
+            } else {
+                // Если это не системная команда, отправляем запрос к API
+                sendMessageToApi(recognizedText);
+            }
+        } else {
+            Log.e(TAG, "Результаты распознавания пусты");
+            handler.postDelayed(() -> startDirectVoiceRecognition(), 500);
+        }
+        
+        // Восстанавливаем громкость
+        if (volumeManager != null) {
+            volumeManager.restoreVolume();
+        }
+    }
+
+    @Override
+    public void onPartialResults(Bundle partialResults) {
+        ArrayList<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (matches != null && !matches.isEmpty()) {
+            String text = matches.get(0);
+            Log.d(TAG, "Промежуточный результат: " + text);
+            
+            // Обновляем текст индикатора прослушивания, чтобы показать пользователю,
+            // что его речь распознается
+            if (listeningMessage != null && !text.trim().isEmpty()) {
+                listeningMessage.setMessage("" + text);
+                messageAdapter.notifyDataSetChanged();
+            }
+        }
+    }
+
+    @Override
+    public void onEvent(int eventType, Bundle params) {
+        Log.d(TAG, "Событие распознавания: " + eventType);
+    }
+
     /**
      * Метод для обработки результатов запроса разрешений
      */
