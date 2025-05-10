@@ -22,6 +22,12 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 - Voice description of recognized objects
 - Customizable shooting modes
 
+### 💬 System Assistant
+- Transparent overlay UI with purple border
+- Gesture-based activation
+- Quick access to system controls
+- Voice-activated device management
+
 ### ♿ Accessibility
 - High contrast mode
 - Adjustable text size
@@ -86,6 +92,10 @@ git clone https://github.com/finettt/Android-AI-Assistant.git
 
 ### Basic Voice Commands
 
+#### System Controls
+- English: "Open control center", "Show notifications"
+- Russian: "Открой пункт управления", "Покажи шторку"
+
 #### Calls
 - English: "Call [contact name]"
 - Russian: "Позвони [имя контакта]"
@@ -102,6 +112,10 @@ git clone https://github.com/finettt/Android-AI-Assistant.git
 - English: "Turn on camera", "What do you see?"
 - Russian: "Включи камеру", "Что сейчас видно на камере?"
 
+#### Help
+- English: "What can you do?", "Help"
+- Russian: "Что ты умеешь?", "Справка", "Помощь"
+
 ## Development
 
 ### Project Structure
@@ -112,6 +126,7 @@ app/
 │   │   ├── java/io/finett/myapplication/
 │   │   │   ├── MainActivity.java
 │   │   │   ├── VoiceChatActivity.java
+│   │   │   ├── SystemAssistantActivity.java
 │   │   │   ├── CameraActivity.java
 │   │   │   └── ...
 │   │   ├── res/
@@ -131,6 +146,8 @@ app/
 - CameraX for camera operations
 - Retrofit for network requests
 - Material Design components
+- TextToSpeech and SpeechRecognizer for voice interactions
+- OpenRouter API for AI responses
 
 ### Project Cleanup
 For deep project cleanup, use:
@@ -155,7 +172,38 @@ MIT License. See [LICENSE](LICENSE) file for details.
 
 ## Changelog
 
-Full changelog is available in [DOCUMENTATION.md](DOCUMENTATION.md#history-of-changes)
+### v1.3.0 (Current)
+- Added System Assistant with transparent overlay UI
+- Implemented gesture-based activation for quick access
+- Added direct speech recognition using SpeechRecognizer
+- Integrated Qwen 3 AI model via OpenRouter API
+- Added auto-dismiss functionality with customizable timeout
+- Improved voice command recognition for system controls
+- Added animation effects for microphone button
+- Enhanced error handling for speech recognition
+
+### v1.2.0
+- Added camera integration with real-time object analysis
+- Implemented voice description of recognized objects
+- Added customizable camera shooting modes
+- Improved UI responsiveness and accessibility
+- Fixed bugs in voice recognition system
+
+### v1.1.0
+- Added multilingual support (English and Russian)
+- Integrated Chrome Custom Tabs for web browsing
+- Improved SMS and phone call functionality
+- Added voice feedback for user commands
+- Enhanced UI with Material Design components
+- Fixed notification handling issues
+
+### v1.0.0
+- Initial release with basic voice assistant functionality
+- Implemented speech recognition and text-to-speech
+- Added basic command processing system
+- Integrated contact access for calls and messages
+- Basic web search functionality
+- Simple user interface with voice input controls
 
 ## API Keys and Security
 
