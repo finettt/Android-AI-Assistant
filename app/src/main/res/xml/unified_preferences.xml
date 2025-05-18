@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Голосовой чат -->
+    <PreferenceCategory
+        android:title="Голосовой чат"
+        app:iconSpaceReserved="false">
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="voice_chat_auto_listen"
+            android:summary="Автоматическое начало распознавания речи при открытии чата"
+            android:title="Автоматическое слушание"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="voice_chat_auto_speak"
+            android:summary="Автоматическое чтение ответов голосом"
+            android:title="Автоматическое озвучивание"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="voice_chat_show_partial_results"
+            android:summary="Показывать предварительный текст во время распознавания"
+            android:title="Отображение промежуточных результатов"
+            app:iconSpaceReserved="false" />
+            
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="voice_chat_play_sound"
+            android:summary="Воспроизводить звук при начале/конце распознавания"
+            android:title="Звуковые сигналы"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- Доступность -->
+    <PreferenceCategory
+        android:title="Доступность"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            android:key="open_accessibility_settings"
+            android:title="Открыть настройки доступности"
+            android:summary="Настроить размер текста, контраст и другие параметры доступности"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="high_contrast_mode"
+            android:summary="Увеличенный контраст для лучшей читаемости"
+            android:title="Высококонтрастный режим"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="large_text"
+            android:summary="Увеличенный размер текста для лучшей читаемости"
+            android:title="Крупный текст"
+            app:iconSpaceReserved="false" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="vibration_feedback"
+            android:summary="Вибрация при нажатии на элементы интерфейса"
+            android:title="Виброотклик"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- Внешний вид -->
+    <PreferenceCategory
+        android:title="Внешний вид"
+        app:iconSpaceReserved="false">
+
+        <ListPreference
+            android:defaultValue="system"
+            android:entries="@array/theme_entries"
+            android:entryValues="@array/theme_values"
+            android:key="app_theme"
+            android:title="Тема оформления"
+            app:iconSpaceReserved="false"
+            app:useSimpleSummaryProvider="true" />
+
+        <SwitchPreferenceCompat
+            android:defaultValue="true"
+            android:key="show_animations"
+            android:summary="Показывать анимации в интерфейсе"
+            android:title="Анимации"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- API и модели -->
+    <PreferenceCategory
+        android:title="API и модели"
+        app:iconSpaceReserved="false">
+
+        <EditTextPreference
+            android:key="api_key"
+            android:summary="Введите API ключ для доступа к моделям искусственного интеллекта"
+            android:title="API ключ"
+            app:iconSpaceReserved="false" />
+
+        <ListPreference
+            android:defaultValue="anthropic/claude-3-haiku-20240307"
+            android:key="default_model_id"
+            android:summary="Выберите модель искусственного интеллекта по умолчанию"
+            android:title="Модель AI по умолчанию"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <!-- Погода -->
+    <PreferenceCategory
+        android:title="Погода"
+        app:iconSpaceReserved="false">
+
+        <EditTextPreference
+            android:defaultValue=""
+            android:key="weather_api_key"
+            android:summary="Введите API ключ для погодного сервиса (OpenWeatherMap)"
+            android:title="API ключ погоды"
+            app:iconSpaceReserved="false" />
+
+        <EditTextPreference
+            android:defaultValue="Москва"
+            android:key="default_city"
+            android:summary="Город по умолчанию для погоды"
+            android:title="Город по умолчанию"
+            app:iconSpaceReserved="false" />
+            
+        <ListPreference
+            android:defaultValue="metric"
+            android:entries="@array/weather_units_entries"
+            android:entryValues="@array/weather_units_values"
+            android:key="weather_units"
+            android:summary="Единицы измерения температуры и скорости ветра"
+            android:title="Единицы измерения"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+</PreferenceScreen> 

@@ -3,6 +3,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     
     <item
+        android:id="@+id/action_unified_settings"
+        android:title="Настройки"
+        android:icon="@android:drawable/ic_menu_preferences"
+        app:showAsAction="ifRoom" />
+    
+    <item
         android:id="@+id/action_assistant_settings"
         android:title="Установить как ассистент"
         android:icon="@drawable/ic_assistant"

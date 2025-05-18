@@ -88,7 +88,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private Chat currentChat;
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
-    private static final int VOICE_ACTIVATION_PERMISSION_CODE = 124;
     private List<AIModel> availableModels = Arrays.asList(
             new AIModel("Claude 3 Haiku", "anthropic/claude-3-haiku-20240307", false),
             new AIModel("Claude 3 Sonnet", "anthropic/claude-3-sonnet-20240229", false),
@@ -150,7 +149,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
         setupApi();
         setupSettingsReceiver();
         setupAccessibilityButtons();
-        setupVoiceActivationButton();
         
         // Получаем API ключ с учетом настройки BUILD_CONFIG
         apiKey = getApiKey();
@@ -176,6 +174,11 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
         // Регистрируем слушателя событий запуска ассистента
         registerAssistantLaunchListener();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
     }
 
     private boolean checkRequiredPermissions() {
@@ -710,36 +713,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 // Перенаправляем на экран разрешений, так как пользователь отказал в разрешении
                 startActivity(new Intent(this, PermissionRequestActivity.class));
             }
-        } else if (requestCode == VOICE_ACTIVATION_PERMISSION_CODE) {
-            boolean allPermissionsGranted = true;
-            
-            // Проверяем все разрешения
-            for (int i = 0; i < permissions.length; i++) {
-                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-                    if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])) {
-                        allPermissionsGranted = false;
-                        Log.d("MainActivity", "Microphone permission denied!");
-                    }
-                } else {
-                    Log.d("MainActivity", "Permission granted: " + permissions[i]);
-                }
-            }
-            
-            if (allPermissionsGranted) {
-                // Включаем голосовую активацию
-                startVoiceActivationService();
-            } else {
-                // Перенаправляем на экран разрешений
-                startActivity(new Intent(this, PermissionRequestActivity.class));
-                
-                // Отключаем настройку голосовой активации
-                SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-                editor.putBoolean("voice_activation_enabled", false);
-                editor.apply();
-                
-                // Обновляем состояние кнопки
-                updateVoiceActivationButtonState();
-            }
         }
     }
 
@@ -1179,223 +1152,15 @@ public class MainActivity extends BaseAccessibilityActivity implements
         dialog.show();
     }
 
-    private void setupVoiceActivationButton() {
-        // Добавляем кнопку для включения/выключения голосовой активации
-        binding.voiceActivationButton.setOnClickListener(v -> {
-            if (isVoiceActivationServiceRunning()) {
-                stopVoiceActivationService();
-            } else {
-                // Запускаем сервис без проверки разрешений
-                startVoiceActivationService();
-            }
-        });
-        
-        // Добавляем тестовую кнопку для запуска ассистента
-        binding.drawerLayout.addDrawerListener(new androidx.drawerlayout.widget.DrawerLayout.DrawerListener() {
-            @Override
-            public void onDrawerSlide(@NonNull android.view.View drawerView, float slideOffset) {}
-
-            @Override
-            public void onDrawerOpened(@NonNull android.view.View drawerView) {
-                // Добавляем кнопку для тестирования ассистента если её ещё нет
-                if (drawerView.findViewById(R.id.testAssistantButton) == null) {
-                    android.widget.Button testButton = new android.widget.Button(MainActivity.this);
-                    testButton.setId(R.id.testAssistantButton);
-                    testButton.setText("Тест ассистента");
-                    testButton.setOnClickListener(view -> testAssistant());
-                    
-                    // Добавляем кнопку в drawerLayout
-                    ((android.widget.LinearLayout) binding.drawerLayout.findViewById(R.id.drawerContent))
-                        .addView(testButton);
-                }
-            }
-
-            @Override
-            public void onDrawerClosed(@NonNull android.view.View drawerView) {}
-
-            @Override
-            public void onDrawerStateChanged(int newState) {}
-        });
-        
-        // Обновляем состояние кнопки
-        updateVoiceActivationButtonState();
-    }
-    
-    // Метод для тестирования запуска ассистента
-    private void testAssistant() {
-        try {
-            Log.d("MainActivity", "Тестирование запуска ассистента");
-            
-            // Запуск через класс AssistantLauncher
-            io.finett.myapplication.AssistantLauncher.launchSystemAssistant(this);
-            
-            // Закрываем drawer
-            binding.drawerLayout.closeDrawers();
-        } catch (Exception e) {
-            Log.e("MainActivity", "Ошибка при запуске ассистента: " + e.getMessage(), e);
-            Toast.makeText(this, "Ошибка: " + e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-    }
-
-    private boolean checkVoiceActivationPermissions() {
-        // Всегда возвращаем true, не будем запрашивать разрешения активно
-        return true;
-    }
-
-    private void updateVoiceActivationButtonState() {
-        boolean isRunning = isVoiceActivationServiceRunning();
-        binding.voiceActivationButton.setTextColor(
-                ContextCompat.getColor(this, 
-                isRunning ? R.color.active_color : R.color.inactive_color));
-        binding.voiceActivationButton.setText(
-                isRunning ? "Отключить голосовую активацию" : "Включить голосовую активацию");
-    }
-    
-    private boolean isVoiceActivationServiceRunning() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        return prefs.getBoolean("voice_activation_enabled", false);
-    }
-    
-    private void startVoiceActivationService() {
-        if (!isVoiceActivationServiceRunning()) {
-            // Проверяем разрешение на запись звука
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
-                    != PackageManager.PERMISSION_GRANTED) {
-                // Вместо прямого запроса разрешений, перенаправляем на экран разрешений
-                startActivity(new Intent(this, PermissionRequestActivity.class));
-                return;
-            }
-            
-            // Проверяем разрешение на уведомления для Android 13+
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                        != PackageManager.PERMISSION_GRANTED) {
-                    // Перенаправляем на экран разрешений
-                    startActivity(new Intent(this, PermissionRequestActivity.class));
-                    return;
-                }
-            }
-            
-            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
-            } else {
-                startService(serviceIntent);
-            }
-            
-            // Сохраняем состояние сервиса
-            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-            editor.putBoolean("voice_activation_enabled", true);
-            editor.apply();
-            
-            updateVoiceActivationButtonState();
-        }
-    }
-    
-    private void stopVoiceActivationService() {
-        Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-        stopService(serviceIntent);
-        
-        // Сохраняем состояние сервиса
-        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-        editor.putBoolean("voice_activation_enabled", false);
-        editor.apply();
-        
-        updateVoiceActivationButtonState();
-    }
-    
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateVoiceActivationButtonState();
-    }
-
-    private void showChatSettingsDialog() {
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
-        builder.setTitle("Настройки чата");
-        
-        // Создаем layout для диалога
-        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_chat_settings, null);
-        
-        // Задаем адаптер для списка моделей
-        ArrayAdapter<AIModel> modelAdapter = new ArrayAdapter<>(
-            this, android.R.layout.simple_spinner_dropdown_item, availableModels);
-        
-        android.widget.Spinner defaultModelSpinner = dialogView.findViewById(R.id.defaultModelSpinner);
-        defaultModelSpinner.setAdapter(modelAdapter);
-        
-        // Загружаем текущие настройки
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String currentModelId = prefs.getString("default_model_id", availableModels.get(0).getId());
-        
-        // Находим позицию текущей модели
-        for (int i = 0; i < availableModels.size(); i++) {
-            if (availableModels.get(i).getId().equals(currentModelId)) {
-                defaultModelSpinner.setSelection(i);
-                break;
-            }
-        }
-        
-        // Настраиваем переключатель сохранения истории
-        com.google.android.material.switchmaterial.SwitchMaterial saveHistorySwitch = 
-            dialogView.findViewById(R.id.saveHistorySwitch);
-        saveHistorySwitch.setChecked(prefs.getBoolean("save_chat_history", true));
-        
-        // Задаем поле для API ключа
-        TextInputEditText apiKeyInput = dialogView.findViewById(R.id.apiKeyInput);
-        apiKeyInput.setText(apiKey);
-        
-        builder.setView(dialogView);
-        
-        builder.setPositiveButton("Сохранить", (dialog, which) -> {
-            // Сохраняем настройки
-            SharedPreferences.Editor editor = prefs.edit();
-            
-            // Сохраняем выбранную модель
-            AIModel selectedModel = (AIModel) defaultModelSpinner.getSelectedItem();
-            editor.putString("default_model_id", selectedModel.getId());
-            
-            // Сохраняем настройку сохранения истории
-            editor.putBoolean("save_chat_history", saveHistorySwitch.isChecked());
-            
-            // Сохраняем API ключ
-            String newApiKey = apiKeyInput.getText().toString().trim();
-            if (!TextUtils.isEmpty(newApiKey)) {
-                editor.putString(API_KEY_PREF, newApiKey);
-                apiKey = newApiKey;
-            }
-            
-            editor.apply();
-            
-            Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show();
-        });
-        
-        builder.setNegativeButton("Отмена", null);
-        
-        AlertDialog dialog = builder.create();
-        dialog.setOnShowListener(dialogInterface -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
-        });
-        dialog.show();
-    }
-
-    @Override
-    public boolean onCreateOptionsMenu(Menu menu) {
-        getMenuInflater().inflate(R.menu.main_menu, menu);
-        return true;
-    }
-    
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         int itemId = item.getItemId();
         
-        if (itemId == R.id.action_assistant_settings) {
+        if (itemId == R.id.action_unified_settings) {
+            Intent intent = new Intent(this, UnifiedSettingsActivity.class);
+            startActivity(intent);
+            return true;
+        } else if (itemId == R.id.action_assistant_settings) {
             // Открытие настроек системного ассистента
             openAssistantSettings();
             return true;
