@@ -2,81 +2,68 @@
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
-    <SwitchPreferenceCompat
-        android:defaultValue="false"
-        android:key="voice_activation_enabled"
-        android:summary="Включить распознавание голосовой активации"
-        android:title="Включить голосовую активацию"
-        app:iconSpaceReserved="false" />
+    <PreferenceCategory
+        android:title="Активация"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="voice_activation_enabled"
+            android:title="Включить голосовую активацию"
+            android:summary="Реагировать на активационные фразы, даже когда приложение не на переднем плане"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
 
     <PreferenceCategory
         android:title="Ключевые фразы"
         app:iconSpaceReserved="false">
-
-        <EditTextPreference
-            android:defaultValue=""
-            android:key="wake_phrases"
-            android:summary="Перечислите через запятую дополнительные ключевые фразы для активации"
-            android:title="Дополнительные фразы активации"
-            app:iconSpaceReserved="false"
-            app:useSimpleSummaryProvider="false" />
         
+        <EditTextPreference
+            android:key="wake_phrases"
+            android:title="Ключевые фразы активации"
+            android:summary="Введите фразы, разделенные запятыми"
+            android:dialogTitle="Введите фразы для активации"
+            android:dialogMessage="Разделяйте фразы запятыми, без пробелов (например: привет алан,алан)"
+            app:iconSpaceReserved="false" />
+            
         <SeekBarPreference
-            android:defaultValue="50"
             android:key="wake_sensitivity"
-            android:max="100"
             android:title="Чувствительность распознавания"
-            app:iconSpaceReserved="false"
-            app:min="10"
-            app:showSeekBarValue="true" />
-
+            android:summary="Выберите чувствительность распознавания ключевых фраз"
+            android:max="100"
+            android:defaultValue="50"
+            app:iconSpaceReserved="false" />
     </PreferenceCategory>
-
+    
     <PreferenceCategory
         android:title="Поведение при активации"
         app:iconSpaceReserved="false">
-
+        
         <SwitchPreferenceCompat
-            android:defaultValue="true"
             android:key="open_voice_chat_on_wake"
-            android:summary="Автоматически открывать голосовой чат при активации"
             android:title="Открывать голосовой чат"
-            app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
+            android:summary="Автоматически открывать голосовой чат при распознавании ключевой фразы"
             android:defaultValue="true"
-            android:key="play_activation_sound"
-            android:summary="Воспроизводить звук при распознавании ключевой фразы"
-            android:title="Звук активации"
             app:iconSpaceReserved="false" />
-
+        
         <SwitchPreferenceCompat
-            android:defaultValue="true"
             android:key="wake_screen_on_activation"
-            android:summary="Включать экран при распознавании ключевой фразы"
-            android:title="Включать экран"
+            android:title="Разбудить экран"
+            android:summary="Включить экран при распознавании ключевой фразы"
+            android:defaultValue="true"
             app:iconSpaceReserved="false" />
-
     </PreferenceCategory>
-
+    
     <PreferenceCategory
-        android:title="Автоматический перезапуск"
+        android:title="Звуковое оповещение"
         app:iconSpaceReserved="false">
-
+        
         <SwitchPreferenceCompat
+            android:key="play_sound_on_wake"
+            android:title="Звуковой сигнал при активации"
+            android:summary="Воспроизводить звуковой сигнал при распознавании ключевой фразы"
             android:defaultValue="true"
-            android:key="voice_activation_startup"
-            android:summary="Автоматически запускать при включении устройства"
-            android:title="Запуск при загрузке"
             app:iconSpaceReserved="false" />
-
-        <SwitchPreferenceCompat
-            android:defaultValue="true"
-            android:key="restart_on_error"
-            android:summary="Перезапускать распознавание при возникновении ошибок"
-            android:title="Перезапуск при ошибках"
-            app:iconSpaceReserved="false" />
-
     </PreferenceCategory>
-
+    
 </PreferenceScreen> 

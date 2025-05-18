@@ -174,24 +174,6 @@ public class OnboardingActivity extends AppCompatActivity {
         SharedPreferences.Editor editor = prefs.edit();
         editor.putBoolean(KEY_FIRST_TIME, false);
         editor.apply();
-        
-        // No need to request permissions here anymore as they're already handled in PermissionRequestActivity
-        // Just set up voice activation service if needed
-        SharedPreferences mainPrefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-        boolean hasRequiredPermissions = true;
-        
-        // Enable voice activation if permissions were granted
-        mainPrefs.edit().putBoolean("voice_activation_enabled", hasRequiredPermissions).apply();
-        
-        // Start the service if needed
-        if (hasRequiredPermissions) {
-            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
-            } else {
-                startService(serviceIntent);
-            }
-        }
     }
 
     private void startMainActivity() {
@@ -261,18 +243,5 @@ public class OnboardingActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Check if voice activation was enabled before
-        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-        boolean isVoiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", false);
-        
-        if (isVoiceActivationEnabled) {
-            // Start the voice activation service
-            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
-            } else {
-                startService(serviceIntent);
-            }
-        }
     }
 } 

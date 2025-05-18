@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string-array name="text_size_entries">
-        <item>Очень маленький</item>
         <item>Маленький</item>
         <item>Нормальный</item>
         <item>Большой</item>
@@ -9,16 +8,15 @@
     </string-array>
 
     <string-array name="text_size_values">
-        <item>very_small</item>
         <item>small</item>
         <item>normal</item>
         <item>large</item>
-        <item>very_large</item>
+        <item>xlarge</item>
     </string-array>
 
     <string-array name="weather_units_entries">
-        <item>Метрическая (°C)</item>
-        <item>Имперская (°F)</item>
+        <item>Метрические (°C)</item>
+        <item>Имперские (°F)</item>
     </string-array>
     
     <string-array name="weather_units_values">
@@ -27,7 +25,7 @@
     </string-array>
 
     <string-array name="weather_api_provider_entries">
-        <item>Open-Meteo (Без API ключа)</item>
+        <item>Open-Meteo (бесплатно)</item>
         <item>OpenWeatherMap</item>
         <item>Weatherbit</item>
     </string-array>
@@ -40,7 +38,7 @@
 
     <string-array name="theme_entries">
         <item>Светлая</item>
-        <item>Темная</item>
+        <item>Тёмная</item>
         <item>Системная</item>
     </string-array>
 
@@ -48,5 +46,29 @@
         <item>light</item>
         <item>dark</item>
         <item>system</item>
+    </string-array>
+
+    <string-array name="ai_model_entries">
+        <item>Claude 3 Haiku</item>
+        <item>Claude 3 Sonnet</item>
+        <item>Gemini Pro</item>
+        <item>Qwen2.5 VL 32B Instruct</item>
+        <item>Qwen 3 235B</item>
+        <item>Mistral 7B</item>
+        <item>Mixtral 8x7B</item>
+        <item>QwQ 32B RpR v1</item>
+        <item>Phi 4 Reasoning</item>
+    </string-array>
+
+    <string-array name="ai_model_values">
+        <item>anthropic/claude-3-haiku-20240307</item>
+        <item>anthropic/claude-3-sonnet-20240229</item>
+        <item>google/gemini-pro</item>
+        <item>qwen/qwen2.5-vl-32b-instruct:free</item>
+        <item>qwen/qwen3-235b-a22b:free</item>
+        <item>mistralai/mistral-7b-instruct-v0.1</item>
+        <item>mistralai/mixtral-8x7b-instruct-v0.1</item>
+        <item>arliai/qwq-32b-arliai-rpr-v1:free</item>
+        <item>microsoft/phi-4-reasoning:free</item>
     </string-array>
 </resources> 

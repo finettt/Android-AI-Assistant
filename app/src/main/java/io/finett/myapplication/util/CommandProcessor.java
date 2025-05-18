@@ -1,21 +1,48 @@
 package io.finett.myapplication.util;
 
+import android.Manifest;
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
+import android.location.Location;
+import android.media.AudioManager;
+import android.net.Uri;
+import android.net.wifi.WifiManager;
+import android.os.Build;
+import android.os.Bundle;
+import android.provider.CalendarContract;
+import android.provider.Settings;
+import android.speech.RecognitionListener;
+import android.speech.RecognizerIntent;
+import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.util.Log;
+import android.widget.Toast;
+
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
+import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Date;
-import java.util.Calendar;
-import java.text.SimpleDateFormat;
-import java.util.Locale;
+
 import io.finett.myapplication.CameraActivity;
+import io.finett.myapplication.R;
 
 public class CommandProcessor {
+    private static final String TAG = "CommandProcessor";
+    
+    private final Context context;
     private final Activity activity;
     private final TextToSpeech textToSpeech;
     private final Map<String, List<String>> commandPatterns;
@@ -65,6 +92,7 @@ public class CommandProcessor {
             OnImageAnalysisResultListener imageListener,
             OnCommandProcessedListener commandListener) {
         this.activity = activity;
+        this.context = activity;
         this.textToSpeech = textToSpeech;
         this.imageAnalysisResultListener = imageListener;
         this.commandProcessedListener = commandListener;
@@ -81,6 +109,7 @@ public class CommandProcessor {
             CommunicationManager communicationManager, ContactsManager contactsManager, 
             BrowserHelper browserHelper) {
         this.activity = activity;
+        this.context = activity;
         this.textToSpeech = textToSpeech;
         this.communicationManager = communicationManager;
         this.browserHelper = browserHelper;
@@ -196,81 +225,134 @@ public class CommandProcessor {
         return patterns;
     }
 
+    /**
+     * Обрабатывает команду пользователя
+     * @param command команда пользователя
+     * @return true если команда была обработана, false в противном случае
+     */
     public boolean processCommand(String command) {
         if (command == null || command.isEmpty()) {
             return false;
         }
-
-        command = command.toLowerCase().trim();
         
-        // Проверяем телефонные команды
-        if (processPhoneCommand(command)) {
-            return true;
+        // Преобразуем команду к нижнему регистру для удобства сравнения
+        String normalizedCommand = command.toLowerCase();
+        
+        // Команды для звонка
+        if (normalizedCommand.startsWith("позвони") || 
+            normalizedCommand.startsWith("набери") || 
+            normalizedCommand.startsWith("вызов") ||
+            normalizedCommand.contains("позвонить")) {
+            
+            // Ищем контакт или номер телефона
+            String phoneNumber = extractPhoneNumber(normalizedCommand);
+            String contactName = extractContactName(normalizedCommand);
+            
+            if (phoneNumber != null) {
+                // Используем подтверждение для звонка
+                processCallCommandWithConfirmation(phoneNumber, contactName);
+                return true;
+            } else {
+                commandProcessedListener.onCommandProcessed(
+                    command,
+                    "Не удалось распознать номер телефона или контакт в команде"
+                );
+                return true;
+            }
         }
         
-        // Проверяем SMS команды
-        if (processSmsCommand(command)) {
-            return true;
+        // Команды для отправки SMS
+        if (normalizedCommand.startsWith("отправь сообщение") || 
+            normalizedCommand.startsWith("отправить сообщение") || 
+            normalizedCommand.startsWith("напиши сообщение") ||
+            normalizedCommand.startsWith("отправь смс") || 
+            normalizedCommand.startsWith("написать смс")) {
+            
+            // Ищем контакт или номер телефона и текст сообщения
+            String phoneNumber = extractPhoneNumber(normalizedCommand);
+            String contactName = extractContactName(normalizedCommand);
+            String messageText = extractMessageText(normalizedCommand);
+            
+            if (phoneNumber != null && messageText != null) {
+                // Используем подтверждение для SMS
+                processSmsCommandWithConfirmation(phoneNumber, contactName, messageText);
+                return true;
+            } else {
+                commandProcessedListener.onCommandProcessed(
+                    command,
+                    "Не удалось распознать номер телефона или текст сообщения в команде"
+                );
+                return true;
+            }
         }
         
-        // Проверяем браузерные команды
-        if (processBrowserCommand(command)) {
-            return true;
+        // Команды для запуска приложений
+        if (normalizedCommand.startsWith("открой") || 
+            normalizedCommand.startsWith("запусти") || 
+            normalizedCommand.startsWith("открыть") || 
+            normalizedCommand.startsWith("запустить")) {
+            
+            // Извлекаем название приложения из команды
+            String appName = extractAppName(normalizedCommand);
+            
+            if (appName != null && !appName.isEmpty()) {
+                return launchApp(appName);
+            }
         }
         
         // Сначала проверяем контекстные команды
-        if (processContextInfoCommand(command)) {
+        if (processContextInfoCommand(normalizedCommand)) {
             return true;
         }
         
         // Проверяем команды календаря
-        if (processCalendarCommand(command)) {
+        if (processCalendarCommand(normalizedCommand)) {
             return true;
         }
         
         // Проверяем команды карт и навигации
-        if (processMapsCommand(command)) {
+        if (processMapsCommand(normalizedCommand)) {
             return true;
         }
 
         // Проверяем Wi-Fi команды
         for (String pattern : wifiPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
-                return processWifiCommand(command);
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return processWifiCommand(normalizedCommand);
             }
         }
         
         // Проверяем Bluetooth команды
         for (String pattern : bluetoothPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
-                return processBluetoothCommand(command);
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return processBluetoothCommand(normalizedCommand);
             }
         }
 
         // Проверяем Location/GPS команды
         for (String pattern : locationPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
-                return processLocationCommand(command);
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return processLocationCommand(normalizedCommand);
             }
         }
         
         // Проверяем команды громкости
         for (String pattern : volumePatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
-                return processVolumeCommand(command);
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return processVolumeCommand(normalizedCommand);
             }
         }
         
         // Проверяем команды настроек
         for (String pattern : settingsPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
-                return processSettingsCommand(command);
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return processSettingsCommand(normalizedCommand);
             }
         }
 
         // Команды для камеры
         for (String pattern : cameraPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(command).matches()) {
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
                 startCameraActivity();
                 return true;
             }
@@ -279,97 +361,115 @@ public class CommandProcessor {
         return false;
     }
     
-    private boolean processPhoneCommand(String command) {
-        // Проверяем шаблоны для телефонных звонков
-        Pattern phoneNamePattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) ([a-zA-Zа-яА-Я\\s]+).*", Pattern.CASE_INSENSITIVE);
-        Pattern phoneNumberPattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) (?:на номер )?([0-9\\+]+).*", Pattern.CASE_INSENSITIVE);
+    /**
+     * Извлекает название приложения из команды
+     * @param command команда пользователя
+     * @return название приложения или null, если не удалось извлечь
+     */
+    private String extractAppName(String command) {
+        // Шаблоны команд для запуска приложений
+        String[] patterns = {
+            "открой (.*)",
+            "открыть (.*)",
+            "запусти (.*)",
+            "запустить (.*)"
+        };
         
-        // Улучшенный шаблон для распознавания звонков родственникам
-        Pattern phoneRelationPattern = Pattern.compile(".*(?:позвони|набери|вызови|звонок) (?:моей|моему|моим|мою|моё|моего|нашей|нашему|нашим)? ([a-zA-Zа-яА-Я\\s]+).*", Pattern.CASE_INSENSITIVE);
-        
-        Matcher nameMatcherPhone = phoneNamePattern.matcher(command);
-        Matcher numberMatcherPhone = phoneNumberPattern.matcher(command);
-        Matcher relationMatcherPhone = phoneRelationPattern.matcher(command);
-        
-        // Сначала проверяем номер телефона (наиболее точное совпадение)
-        if (numberMatcherPhone.matches()) {
-            String phoneNumber = numberMatcherPhone.group(1);
-            if (communicationManager != null) {
-                communicationManager.makePhoneCall(phoneNumber);
-                textToSpeech.speak("Звоню на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
-                return true;
+        for (String pattern : patterns) {
+            Pattern p = Pattern.compile(pattern);
+            Matcher m = p.matcher(command);
+            if (m.find()) {
+                return m.group(1).trim();
             }
         }
-        // Затем проверяем отношения/имена
-        else if (nameMatcherPhone.matches() || relationMatcherPhone.matches()) {
-            String contactQuery = nameMatcherPhone.matches() 
-                                ? nameMatcherPhone.group(1) 
-                                : relationMatcherPhone.group(1);
-                                
-            contactQuery = contactQuery.trim();
-            
-            if (communicationManager != null) {
-                communicationManager.makePhoneCall(contactQuery);
+        
+        // Если не нашли по шаблонам, пробуем извлечь все после первого слова
+        String[] words = command.split("\\s+", 2);
+        if (words.length > 1) {
+            return words[1].trim();
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Обрабатывает команды для звонков
+     * @param command команда пользователя
+     * @return true если команда была обработана, false в противном случае
+     */
+    private boolean processPhoneCommand(String command) {
+        // Шаблоны для команд звонков
+        String[] phonePatterns = {
+            "позвони (.*)",
+            "набери (.*)",
+            "вызов (.*)",
+            "позвонить (.*)"
+        };
+        
+        for (String pattern : phonePatterns) {
+            Pattern p = Pattern.compile(pattern);
+            Matcher m = p.matcher(command);
+            if (m.find()) {
+                String contact = m.group(1).trim();
                 
-                // Если это отношение, которое мы уже знаем, используем его в сообщении
-                String relation = communicationManager.getContactNlpProcessor().extractRelationFromText(contactQuery);
-                if (relation != null && communicationManager.hasRelationMapping(relation)) {
-                    textToSpeech.speak("Звоню " + relation, TextToSpeech.QUEUE_FLUSH, null, null);
+                // Извлекаем номер телефона или имя контакта
+                String phoneNumber = extractPhoneNumber(command);
+                String contactName = extractContactName(command);
+                
+                if (phoneNumber != null) {
+                    // Используем метод с подтверждением
+                    processCallCommandWithConfirmation(phoneNumber, contactName);
+                    return true;
                 } else {
-                    textToSpeech.speak("Набираю " + contactQuery, TextToSpeech.QUEUE_FLUSH, null, null);
+                    commandProcessedListener.onCommandProcessed(
+                        command,
+                        "Не удалось распознать номер телефона или контакт в команде"
+                    );
+                    return true;
                 }
-                return true;
             }
         }
         
         return false;
     }
     
+    /**
+     * Обрабатывает команды для отправки SMS
+     * @param command команда пользователя
+     * @return true если команда была обработана, false в противном случае
+     */
     private boolean processSmsCommand(String command) {
-        // Проверяем шаблоны для SMS сообщений
-        Pattern smsNamePattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([a-zA-Zа-яА-Я\\s]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
-        Pattern smsNumberPattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) ([0-9\\+]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
+        // Шаблоны для SMS команд
+        String[] smsPatterns = {
+            "отправь сообщение (.*)",
+            "отправить сообщение (.*)",
+            "напиши сообщение (.*)",
+            "отправь смс (.*)",
+            "написать смс (.*)"
+        };
         
-        // Улучшенный шаблон для распознавания SMS родственникам
-        Pattern smsRelationPattern = Pattern.compile(".*(?:отправь|напиши|написать|создай) (?:смс|sms|сообщение) (?:моей|моему|моим|мою|моё|моего|нашей|нашему|нашим)? ([a-zA-Zа-яА-Я\\s]+) (?:с текстом|текст) (.+).*", Pattern.CASE_INSENSITIVE);
-        
-        Matcher nameMatcher = smsNamePattern.matcher(command);
-        Matcher numberMatcher = smsNumberPattern.matcher(command);
-        Matcher relationMatcher = smsRelationPattern.matcher(command);
-        
-        // Сначала проверяем номер телефона (наиболее точное совпадение)
-        if (numberMatcher.matches()) {
-            String phoneNumber = numberMatcher.group(1);
-            String message = numberMatcher.group(2);
-            if (communicationManager != null) {
-                communicationManager.sendSms(phoneNumber, message);
-                textToSpeech.speak("Отправляю SMS на номер " + phoneNumber, TextToSpeech.QUEUE_FLUSH, null, null);
-                return true;
-            }
-        }
-        // Затем проверяем отношения/имена
-        else if (nameMatcher.matches() || relationMatcher.matches()) {
-            String contactQuery = nameMatcher.matches() 
-                               ? nameMatcher.group(1) 
-                               : relationMatcher.group(1);
-                               
-            String message = nameMatcher.matches() 
-                          ? nameMatcher.group(2) 
-                          : relationMatcher.group(2);
-                          
-            contactQuery = contactQuery.trim();
-            
-            if (communicationManager != null) {
-                communicationManager.sendSms(contactQuery, message);
+        for (String pattern : smsPatterns) {
+            Pattern p = Pattern.compile(pattern);
+            Matcher m = p.matcher(command);
+            if (m.find()) {
+                String recipient = m.group(1).trim();
                 
-                // Если это отношение, которое мы уже знаем, используем его в сообщении
-                String relation = communicationManager.getContactNlpProcessor().extractRelationFromText(contactQuery);
-                if (relation != null && communicationManager.hasRelationMapping(relation)) {
-                    textToSpeech.speak("Отправляю сообщение " + relation, TextToSpeech.QUEUE_FLUSH, null, null);
+                // Извлекаем номер телефона или имя контакта и текст сообщения
+                String phoneNumber = extractPhoneNumber(command);
+                String contactName = extractContactName(command);
+                String messageText = extractMessageText(command);
+                
+                if (phoneNumber != null && messageText != null) {
+                    // Используем метод с подтверждением
+                    processSmsCommandWithConfirmation(phoneNumber, contactName, messageText);
+                    return true;
                 } else {
-                    textToSpeech.speak("Отправляю сообщение " + contactQuery, TextToSpeech.QUEUE_FLUSH, null, null);
+                    commandProcessedListener.onCommandProcessed(
+                        command,
+                        "Не удалось распознать номер телефона или текст сообщения в команде"
+                    );
+                    return true;
                 }
-                return true;
             }
         }
         
@@ -744,5 +844,427 @@ public class CommandProcessor {
             commandProcessedListener.onCommandProcessed(command, response);
         }
         return true;
+    }
+
+    /**
+     * Запускает приложение по его названию
+     * @param appName название приложения для запуска
+     * @return true если приложение найдено и запущено, false в противном случае
+     */
+    public boolean launchApp(String appName) {
+        try {
+            // Получаем PackageManager для поиска приложений
+            PackageManager packageManager = context.getPackageManager();
+            
+            // Получаем список всех установленных приложений
+            List<ApplicationInfo> installedApps = packageManager.getInstalledApplications(PackageManager.GET_META_DATA);
+            
+            // Нормализуем имя приложения для поиска
+            String normalizedAppName = appName.toLowerCase().trim();
+            
+            // Создаем список соответствий для поиска наиболее подходящего приложения
+            Map<String, ApplicationInfo> appMatches = new HashMap<>();
+            
+            for (ApplicationInfo appInfo : installedApps) {
+                // Получаем имя приложения
+                String currentAppName = packageManager.getApplicationLabel(appInfo).toString().toLowerCase();
+                
+                // Проверяем, содержит ли имя приложения искомую строку
+                if (currentAppName.contains(normalizedAppName) || 
+                    normalizedAppName.contains(currentAppName)) {
+                    appMatches.put(currentAppName, appInfo);
+                }
+            }
+            
+            // Если найдены соответствия
+            if (!appMatches.isEmpty()) {
+                // Находим наиболее точное соответствие
+                String bestMatch = "";
+                ApplicationInfo bestApp = null;
+                
+                for (Map.Entry<String, ApplicationInfo> entry : appMatches.entrySet()) {
+                    if (bestMatch.isEmpty() || entry.getKey().length() < bestMatch.length()) {
+                        bestMatch = entry.getKey();
+                        bestApp = entry.getValue();
+                    }
+                }
+                
+                if (bestApp != null) {
+                    // Получаем Intent для запуска приложения
+                    Intent launchIntent = packageManager.getLaunchIntentForPackage(bestApp.packageName);
+                    
+                    if (launchIntent != null) {
+                        launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        context.startActivity(launchIntent);
+                        
+                        // Сообщаем об успешном запуске
+                        commandProcessedListener.onCommandProcessed(
+                            "открой " + appName,
+                            "Открываю " + packageManager.getApplicationLabel(bestApp).toString()
+                        );
+                        return true;
+                    }
+                }
+            }
+            
+            // Если не нашли приложение или не смогли запустить
+            commandProcessedListener.onCommandProcessed(
+                "открой " + appName,
+                "Не удалось найти приложение \"" + appName + "\" или запустить его"
+            );
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error launching app: " + e.getMessage());
+            commandProcessedListener.onCommandProcessed(
+                "открой " + appName,
+                "Произошла ошибка при попытке запуска приложения: " + e.getMessage()
+            );
+        }
+        
+        return false;
+    }
+
+    /**
+     * Показывает диалог подтверждения с голосовым запросом
+     * @param title заголовок диалога
+     * @param message сообщение диалога
+     * @param confirmAction действие при подтверждении
+     */
+    private void showVoiceConfirmationDialog(String title, String message, Runnable confirmAction) {
+        if (context instanceof Activity) {
+            Activity activityContext = (Activity) context;
+            
+            // Создаем диалог подтверждения
+            AlertDialog.Builder builder = new AlertDialog.Builder(activityContext);
+            builder.setTitle(title);
+            builder.setMessage(message);
+            
+            // Создаем переменную для отслеживания состояния распознавания
+            final boolean[] isListening = {false};
+            final boolean[] dialogShowing = {true};
+            
+            // Создаем SpeechRecognizer для распознавания ответа
+            SpeechRecognizer speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context);
+            
+            // Добавляем кнопки
+            builder.setPositiveButton("Да", (dialog, which) -> {
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                }
+                confirmAction.run();
+            });
+            
+            builder.setNegativeButton("Нет", (dialog, which) -> {
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                }
+                // Отменяем действие
+                if (textToSpeech != null) {
+                    HashMap<String, String> params = new HashMap<>();
+                    params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "cancelAction");
+                    textToSpeech.speak("Действие отменено", TextToSpeech.QUEUE_FLUSH, params);
+                }
+            });
+            
+            // Показываем диалог
+            AlertDialog dialog = builder.create();
+            dialog.setOnDismissListener(dialogInterface -> {
+                dialogShowing[0] = false;
+                if (speechRecognizer != null) {
+                    speechRecognizer.destroy();
+                }
+            });
+            dialog.show();
+            
+            // Озвучиваем вопрос
+            if (textToSpeech != null) {
+                HashMap<String, String> params = new HashMap<>();
+                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "confirmQuestion");
+                
+                textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                    @Override
+                    public void onStart(String utteranceId) {}
+                    
+                    @Override
+                    public void onDone(String utteranceId) {
+                        if ("confirmQuestion".equals(utteranceId) && dialogShowing[0]) {
+                            // Начинаем слушать ответ после озвучивания вопроса
+                            activityContext.runOnUiThread(() -> {
+                                if (!isListening[0] && dialogShowing[0]) {
+                                    startListeningForConfirmation(speechRecognizer, confirmAction, dialog);
+                                    isListening[0] = true;
+                                }
+                            });
+                        }
+                    }
+                    
+                    @Override
+                    public void onError(String utteranceId) {}
+                });
+                
+                textToSpeech.speak(message, TextToSpeech.QUEUE_FLUSH, params);
+            }
+        }
+    }
+    
+    /**
+     * Запускает распознавание речи для подтверждения действия
+     */
+    private void startListeningForConfirmation(SpeechRecognizer speechRecognizer, Runnable confirmAction, AlertDialog dialog) {
+        try {
+            speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                @Override
+                public void onReadyForSpeech(Bundle params) {}
+                
+                @Override
+                public void onBeginningOfSpeech() {}
+                
+                @Override
+                public void onRmsChanged(float rmsdB) {}
+                
+                @Override
+                public void onBufferReceived(byte[] buffer) {}
+                
+                @Override
+                public void onEndOfSpeech() {}
+                
+                @Override
+                public void onError(int error) {
+                    // При ошибке просто продолжаем показывать диалог
+                }
+                
+                @Override
+                public void onResults(Bundle results) {
+                    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (matches != null && !matches.isEmpty()) {
+                        String response = matches.get(0).toLowerCase();
+                        
+                        // Проверяем ответ на подтверждение
+                        if (response.contains("да") || response.contains("подтверждаю") || 
+                            response.contains("согласен") || response.contains("выполняй")) {
+                            dialog.dismiss();
+                            confirmAction.run();
+                        } 
+                        // Проверяем ответ на отказ
+                        else if (response.contains("нет") || response.contains("отмена") || 
+                                 response.contains("отменить") || response.contains("не надо")) {
+                            dialog.dismiss();
+                            // Отменяем действие
+                            if (textToSpeech != null) {
+                                HashMap<String, String> params = new HashMap<>();
+                                params.put(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, "cancelAction");
+                                textToSpeech.speak("Действие отменено", TextToSpeech.QUEUE_FLUSH, params);
+                            }
+                        }
+                        // Если ответ не распознан, продолжаем показывать диалог
+                    }
+                }
+                
+                @Override
+                public void onPartialResults(Bundle partialResults) {}
+                
+                @Override
+                public void onEvent(int eventType, Bundle params) {}
+            });
+            
+            // Запускаем распознавание
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+            speechRecognizer.startListening(intent);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting speech recognition for confirmation: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Обрабатывает команду звонка с голосовым подтверждением
+     */
+    public void processCallCommandWithConfirmation(String phoneNumber, String contactName) {
+        String confirmMessage = "Вы действительно хотите позвонить " + 
+                               (contactName != null ? contactName : "по номеру " + phoneNumber) + "?";
+        
+        showVoiceConfirmationDialog("Подтверждение звонка", confirmMessage, () -> {
+            makePhoneCall(phoneNumber);
+        });
+    }
+    
+    /**
+     * Обрабатывает команду отправки SMS с голосовым подтверждением
+     */
+    public void processSmsCommandWithConfirmation(String phoneNumber, String contactName, String message) {
+        String confirmMessage = "Вы действительно хотите отправить сообщение " + 
+                               (contactName != null ? contactName : "на номер " + phoneNumber) + "?";
+        
+        showVoiceConfirmationDialog("Подтверждение сообщения", confirmMessage, () -> {
+            sendSms(phoneNumber, message);
+        });
+    }
+
+    /**
+     * Выполняет звонок на указанный номер телефона
+     * @param phoneNumber номер телефона
+     */
+    private void makePhoneCall(String phoneNumber) {
+        try {
+            // Проверяем разрешение на звонки
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.CALL_PHONE) != PackageManager.PERMISSION_GRANTED) {
+                // Запрашиваем разрешение, если его нет
+                if (activity != null) {
+                    ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.CALL_PHONE}, 100);
+                    commandProcessedListener.onCommandProcessed(
+                        "звонок",
+                        "Для совершения звонка необходимо разрешение"
+                    );
+                }
+                return;
+            }
+            
+            // Создаем Intent для звонка
+            Intent callIntent = new Intent(Intent.ACTION_CALL);
+            callIntent.setData(Uri.parse("tel:" + phoneNumber));
+            callIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            
+            // Запускаем звонок
+            context.startActivity(callIntent);
+            
+            // Сообщаем пользователю
+            commandProcessedListener.onCommandProcessed(
+                "звонок",
+                "Звоню на номер " + phoneNumber
+            );
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error making phone call: " + e.getMessage());
+            commandProcessedListener.onCommandProcessed(
+                "звонок",
+                "Ошибка при совершении звонка: " + e.getMessage()
+            );
+        }
+    }
+    
+    /**
+     * Отправляет SMS на указанный номер телефона
+     * @param phoneNumber номер телефона
+     * @param message текст сообщения
+     */
+    private void sendSms(String phoneNumber, String message) {
+        try {
+            // Проверяем разрешение на отправку SMS
+            if (ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) != PackageManager.PERMISSION_GRANTED) {
+                // Запрашиваем разрешение, если его нет
+                if (activity != null) {
+                    ActivityCompat.requestPermissions(activity, new String[]{Manifest.permission.SEND_SMS}, 101);
+                    commandProcessedListener.onCommandProcessed(
+                        "сообщение",
+                        "Для отправки SMS необходимо разрешение"
+                    );
+                }
+                return;
+            }
+            
+            // Используем Intent для отправки SMS через системное приложение
+            Intent smsIntent = new Intent(Intent.ACTION_SENDTO);
+            smsIntent.setData(Uri.parse("smsto:" + phoneNumber));
+            smsIntent.putExtra("sms_body", message);
+            smsIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            
+            // Запускаем приложение для SMS
+            context.startActivity(smsIntent);
+            
+            // Сообщаем пользователю
+            commandProcessedListener.onCommandProcessed(
+                "сообщение",
+                "Отправляю сообщение на номер " + phoneNumber
+            );
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error sending SMS: " + e.getMessage());
+            commandProcessedListener.onCommandProcessed(
+                "сообщение",
+                "Ошибка при отправке SMS: " + e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Извлекает номер телефона из команды
+     * @param command команда пользователя
+     * @return номер телефона или null, если не удалось извлечь
+     */
+    private String extractPhoneNumber(String command) {
+        // Шаблон для номера телефона
+        Pattern phoneNumberPattern = Pattern.compile(".*?(?:номер|телефон|номеру|телефону)?\\s*([+]?[0-9]{1,3}?[\\s-]?\\(?[0-9]{3}\\)?[\\s-]?[0-9]{3}[\\s-]?[0-9]{2}[\\s-]?[0-9]{2}).*", Pattern.CASE_INSENSITIVE);
+        Matcher matcher = phoneNumberPattern.matcher(command);
+        
+        if (matcher.find()) {
+            return matcher.group(1).replaceAll("[\\s-]", "");
+        }
+        
+        // Если не нашли номер телефона, проверяем наличие контакта
+        String contactName = extractContactName(command);
+        if (contactName != null) {
+            // Здесь должен быть код для поиска номера телефона по имени контакта
+            // Для примера просто возвращаем номер телефона
+            return "+79001234567";
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Извлекает имя контакта из команды
+     * @param command команда пользователя
+     * @return имя контакта или null, если не удалось извлечь
+     */
+    private String extractContactName(String command) {
+        // Шаблоны для имени контакта
+        String[] contactPatterns = {
+            ".*?(?:позвони|набери|вызов|звонок)\\s+(?:на)?\\s*([a-zA-Zа-яА-Я\\s]+).*",
+            ".*?(?:отправь|напиши|написать|создай)\\s+(?:смс|sms|сообщение)\\s+(?:для)?\\s*([a-zA-Zа-яА-Я\\s]+).*"
+        };
+        
+        for (String patternStr : contactPatterns) {
+            Pattern pattern = Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(command);
+            
+            if (matcher.find()) {
+                String contact = matcher.group(1).trim();
+                
+                // Исключаем фразы, которые не являются именами контактов
+                if (contact.matches("(?i).*(?:на номер|по номеру|с текстом|текст).*")) {
+                    continue;
+                }
+                
+                return contact;
+            }
+        }
+        
+        return null;
+    }
+    
+    /**
+     * Извлекает текст сообщения из команды
+     * @param command команда пользователя
+     * @return текст сообщения или null, если не удалось извлечь
+     */
+    private String extractMessageText(String command) {
+        // Шаблоны для текста сообщения
+        String[] messagePatterns = {
+            ".*?(?:с текстом|текст|содержанием|содержание)\\s+(.+)",
+            ".*?(?:отправь|напиши|написать|создай)\\s+(?:смс|sms|сообщение)\\s+(?:[a-zA-Zа-яА-Я\\s0-9+]+)\\s+(?:с текстом|текст|содержанием|содержание)?\\s+(.+)"
+        };
+        
+        for (String patternStr : messagePatterns) {
+            Pattern pattern = Pattern.compile(patternStr, Pattern.CASE_INSENSITIVE);
+            Matcher matcher = pattern.matcher(command);
+            
+            if (matcher.find()) {
+                return matcher.group(1).trim();
+            }
+        }
+        
+        return null;
     }
 } 

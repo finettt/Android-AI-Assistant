@@ -3,99 +3,144 @@ package io.finett.myapplication;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.view.MenuItem;
+import android.util.Log;
 
-import androidx.annotation.NonNull;
-import androidx.appcompat.app.ActionBar;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.preference.Preference;
+import androidx.preference.EditTextPreference;
 import androidx.preference.PreferenceFragmentCompat;
 import androidx.preference.PreferenceManager;
 import androidx.preference.SeekBarPreference;
 import androidx.preference.SwitchPreferenceCompat;
 
-public class VoiceActivationSettingsActivity extends AppCompatActivity {
+import io.finett.myapplication.base.BaseAccessibilityActivity;
+
+/**
+ * Активность настроек голосовой активации
+ */
+public class VoiceActivationSettingsActivity extends BaseAccessibilityActivity {
+    private static final String TAG = "VoiceActivationSettings";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_settings);
         
-        if (savedInstanceState == null) {
-            getSupportFragmentManager()
-                    .beginTransaction()
-                    .replace(R.id.settings_container, new VoiceActivationSettingsFragment())
-                    .commit();
+        if (getSupportActionBar() != null) {
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+            getSupportActionBar().setTitle("Настройки голосовой активации");
         }
         
-        ActionBar actionBar = getSupportActionBar();
-        if (actionBar != null) {
-            actionBar.setDisplayHomeAsUpEnabled(true);
-            actionBar.setTitle("Настройки голосовой активации");
-        }
+        getSupportFragmentManager()
+                .beginTransaction()
+                .replace(R.id.settings_container, new VoiceActivationSettingsFragment())
+                .commit();
     }
     
     @Override
-    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
-        if (item.getItemId() == android.R.id.home) {
-            onBackPressed();
-            return true;
+    protected void onPause() {
+        super.onPause();
+        // Перезапускаем сервис с новыми настройками
+        if (isVoiceActivationServiceEnabled()) {
+            stopVoiceActivationService();
+            startVoiceActivationService();
         }
-        return super.onOptionsItemSelected(item);
     }
     
-    public static class VoiceActivationSettingsFragment extends PreferenceFragmentCompat implements SharedPreferences.OnSharedPreferenceChangeListener {
-        private SwitchPreferenceCompat voiceActivationEnabledPreference;
+    private boolean isVoiceActivationServiceEnabled() {
+        SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(this);
+        return prefs.getBoolean("voice_activation_enabled", false);
+    }
+    
+    private void startVoiceActivationService() {
+        Intent intent = new Intent(this, VoiceActivationService.class);
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            startForegroundService(intent);
+        } else {
+            startService(intent);
+        }
+        Log.d(TAG, "Сервис голосовой активации запущен");
+    }
+    
+    private void stopVoiceActivationService() {
+        Intent intent = new Intent(this, VoiceActivationService.class);
+        stopService(intent);
+        Log.d(TAG, "Сервис голосовой активации остановлен");
+    }
+    
+    /**
+     * Фрагмент с настройками голосовой активации
+     */
+    public static class VoiceActivationSettingsFragment extends PreferenceFragmentCompat implements 
+            SharedPreferences.OnSharedPreferenceChangeListener {
         
         @Override
         public void onCreatePreferences(Bundle savedInstanceState, String rootKey) {
             setPreferencesFromResource(R.xml.voice_activation_preferences, rootKey);
             
-            // Получаем ссылки на элементы настроек
-            voiceActivationEnabledPreference = findPreference("voice_activation_enabled");
-            
-            // Устанавливаем обработчики для особых настроек
             final SeekBarPreference sensitivityPreference = findPreference("wake_sensitivity");
             if (sensitivityPreference != null) {
+                // Устанавливаем значения по умолчанию
+                sensitivityPreference.setMin(0);
+                sensitivityPreference.setMax(100);
+                sensitivityPreference.setValue(50);
+                
                 sensitivityPreference.setOnPreferenceChangeListener((preference, newValue) -> {
-                    // Конвертируем значение SeekBar (0-100) в коэффициент чувствительности (0.0-1.0)
-                    float sensitivity = ((Integer) newValue).floatValue() / 100f;
-                    SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(requireContext());
-                    prefs.edit().putFloat("wake_sensitivity", sensitivity).apply();
+                    int sensitivity = (Integer) newValue;
+                    // Конвертируем значение в диапазон 0.0 - 1.0
+                    float sensitivityValue = sensitivity / 100.0f;
+                    
+                    // Сохраняем значение как float
+                    SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+                    prefs.edit().putFloat("wake_sensitivity", sensitivityValue).apply();
+                    
                     return true;
                 });
             }
             
-            // Обработчик для переключения сервиса голосовой активации
-            final SwitchPreferenceCompat voiceActivationSwitch = findPreference("voice_activation_enabled");
-            if (voiceActivationSwitch != null) {
-                // Загружаем текущее состояние
-                SharedPreferences prefs = requireContext().getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-                boolean isEnabled = prefs.getBoolean("voice_activation_enabled", false);
-                voiceActivationSwitch.setChecked(isEnabled);
+            // Получаем текущие wake-фразы
+            SharedPreferences prefs = getPreferenceManager().getSharedPreferences();
+            String currentPhrases = prefs.getString("wake_phrases", "");
+            
+            // Настраиваем поле для ввода wake-фраз
+            EditTextPreference wakePhrasesPreference = findPreference("wake_phrases");
+            if (wakePhrasesPreference != null) {
+                if (currentPhrases.isEmpty()) {
+                    // Устанавливаем значения по умолчанию если они не заданы
+                    wakePhrasesPreference.setText("привет алан,алан,привет! алан");
+                }
                 
-                voiceActivationSwitch.setOnPreferenceChangeListener((preference, newValue) -> {
+                wakePhrasesPreference.setSummaryProvider(preference -> {
+                    String phrases = ((EditTextPreference) preference).getText();
+                    return phrases == null || phrases.isEmpty() 
+                            ? "Не задано (используются стандартные фразы)" 
+                            : phrases.replace(",", ", ");
+                });
+            }
+            
+            // Переключатель включения/выключения сервиса
+            SwitchPreferenceCompat enabledPreference = findPreference("voice_activation_enabled");
+            if (enabledPreference != null) {
+                enabledPreference.setOnPreferenceChangeListener((preference, newValue) -> {
                     boolean enabled = (Boolean) newValue;
                     
-                    if (enabled) {
-                        // Запускаем сервис
-                        Intent serviceIntent = new Intent(requireContext(), VoiceActivationService.class);
-                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                            requireContext().startForegroundService(serviceIntent);
+                    try {
+                        if (enabled) {
+                            // Запускаем сервис голосовой активации
+                            Intent intent = new Intent(getActivity(), VoiceActivationService.class);
+                            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                getActivity().startForegroundService(intent);
+                            } else {
+                                getActivity().startService(intent);
+                            }
+                            Log.d(TAG, "Сервис голосовой активации запущен из настроек");
                         } else {
-                            requireContext().startService(serviceIntent);
+                            // Останавливаем сервис голосовой активации
+                            Intent intent = new Intent(getActivity(), VoiceActivationService.class);
+                            getActivity().stopService(intent);
+                            Log.d(TAG, "Сервис голосовой активации остановлен из настроек");
                         }
-                    } else {
-                        // Останавливаем сервис
-                        Intent serviceIntent = new Intent(requireContext(), VoiceActivationService.class);
-                        requireContext().stopService(serviceIntent);
+                    } catch (Exception e) {
+                        Log.e(TAG, "Ошибка при изменении состояния сервиса голосовой активации", e);
                     }
-                    
-                    // Сохраняем состояние
-                    SharedPreferences.Editor editor = requireContext().getSharedPreferences(
-                            MainActivity.PREFS_NAME, MODE_PRIVATE).edit();
-                    editor.putBoolean("voice_activation_enabled", enabled);
-                    editor.apply();
                     
                     return true;
                 });
@@ -105,33 +150,20 @@ public class VoiceActivationSettingsActivity extends AppCompatActivity {
         @Override
         public void onResume() {
             super.onResume();
-            getPreferenceManager().getSharedPreferences().registerOnSharedPreferenceChangeListener(this);
-            
-            // Обновляем состояние переключателя
-            if (voiceActivationEnabledPreference != null) {
-                SharedPreferences prefs = requireContext().getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-                boolean isEnabled = prefs.getBoolean("voice_activation_enabled", false);
-                voiceActivationEnabledPreference.setChecked(isEnabled);
-            }
+            getPreferenceManager().getSharedPreferences()
+                    .registerOnSharedPreferenceChangeListener(this);
         }
         
         @Override
         public void onPause() {
-            getPreferenceManager().getSharedPreferences().unregisterOnSharedPreferenceChangeListener(this);
             super.onPause();
+            getPreferenceManager().getSharedPreferences()
+                    .unregisterOnSharedPreferenceChangeListener(this);
         }
         
         @Override
-        public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
-            // При изменении настроек, обновляем UI если нужно
-            if ("voice_activation_enabled".equals(key) && voiceActivationEnabledPreference != null) {
-                boolean isEnabled = sharedPreferences.getBoolean(key, false);
-                voiceActivationEnabledPreference.setChecked(isEnabled);
-            }
-            
-            // Уведомляем сервис об изменении настроек
-            Intent intent = new Intent("io.finett.myapplication.VOICE_SETTINGS_UPDATED");
-            requireContext().sendBroadcast(intent);
+        public void onSharedPreferenceChanged(SharedPreferences prefs, String key) {
+            // Можно добавить дополнительную логику при изменении настроек
         }
     }
 } 
