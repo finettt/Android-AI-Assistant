@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <PreferenceCategory
+        android:title="Активация"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="voice_activation_enabled"
+            android:title="Включить голосовую активацию"
+            android:summary="Реагировать на активационные фразы, даже когда приложение не на переднем плане"
+            android:defaultValue="false"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="Ключевые фразы"
+        app:iconSpaceReserved="false">
+        
+        <EditTextPreference
+            android:key="wake_phrases"
+            android:title="Ключевые фразы активации"
+            android:summary="Введите фразы, разделенные запятыми"
+            android:dialogTitle="Введите фразы для активации"
+            android:dialogMessage="Разделяйте фразы запятыми, без пробелов (например: привет алан,алан)"
+            app:iconSpaceReserved="false" />
+            
+        <SeekBarPreference
+            android:key="wake_sensitivity"
+            android:title="Чувствительность распознавания"
+            android:summary="Выберите чувствительность распознавания ключевых фраз"
+            android:max="100"
+            android:defaultValue="50"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    
+    <PreferenceCategory
+        android:title="Поведение при активации"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="open_voice_chat_on_wake"
+            android:title="Открывать голосовой чат"
+            android:summary="Автоматически открывать голосовой чат при распознавании ключевой фразы"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
+            android:key="wake_screen_on_activation"
+            android:title="Разбудить экран"
+            android:summary="Включить экран при распознавании ключевой фразы"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    
+    <PreferenceCategory
+        android:title="Звуковое оповещение"
+        app:iconSpaceReserved="false">
+        
+        <SwitchPreferenceCompat
+            android:key="play_sound_on_wake"
+            android:title="Звуковой сигнал при активации"
+            android:summary="Воспроизводить звуковой сигнал при распознавании ключевой фразы"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+    </PreferenceCategory>
+    
+</PreferenceScreen> 
