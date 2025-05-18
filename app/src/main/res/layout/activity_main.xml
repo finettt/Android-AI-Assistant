@@ -141,17 +141,6 @@
                 android:textColor="#FFFFFF" />
 
             <Button
-                android:id="@+id/voiceActivationButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="16dp"
-                android:layout_marginEnd="16dp"
-                android:drawableStart="@drawable/ic_mic"
-                android:text="Включить голосовую активацию"
-                android:textAlignment="textStart"
-                android:textColor="#FFFFFF" />
-
-            <Button
                 android:id="@+id/toggleThemeButton"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

@@ -67,3 +67,4 @@ secrets.properties
 secrets.properties.*
 !secrets.properties.example
 !setup-dev.*
+.cursor

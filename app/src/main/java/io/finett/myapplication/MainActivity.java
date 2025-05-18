@@ -86,7 +86,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private Chat currentChat;
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
-    private static final int VOICE_ACTIVATION_PERMISSION_CODE = 124;
     private List<AIModel> availableModels = Arrays.asList(
             new AIModel("Claude 3 Haiku", "anthropic/claude-3-haiku-20240307", false),
             new AIModel("Claude 3 Sonnet", "anthropic/claude-3-sonnet-20240229", false),
@@ -147,7 +146,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
         setupApi();
         setupSettingsReceiver();
         setupAccessibilityButtons();
-        setupVoiceActivationButton();
         
         // Получаем API ключ с учетом настройки BUILD_CONFIG
         apiKey = getApiKey();
@@ -170,6 +168,11 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         // Check for wake phrase intent
         handleIntent(getIntent());
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
     }
 
     private boolean checkRequiredPermissions() {
@@ -704,36 +707,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 // Перенаправляем на экран разрешений, так как пользователь отказал в разрешении
                 startActivity(new Intent(this, PermissionRequestActivity.class));
             }
-        } else if (requestCode == VOICE_ACTIVATION_PERMISSION_CODE) {
-            boolean allPermissionsGranted = true;
-            
-            // Проверяем все разрешения
-            for (int i = 0; i < permissions.length; i++) {
-                if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
-                    if (Manifest.permission.RECORD_AUDIO.equals(permissions[i])) {
-                        allPermissionsGranted = false;
-                        Log.d("MainActivity", "Microphone permission denied!");
-                    }
-                } else {
-                    Log.d("MainActivity", "Permission granted: " + permissions[i]);
-                }
-            }
-            
-            if (allPermissionsGranted) {
-                // Включаем голосовую активацию
-                startVoiceActivationService();
-            } else {
-                // Перенаправляем на экран разрешений
-                startActivity(new Intent(this, PermissionRequestActivity.class));
-                
-                // Отключаем настройку голосовой активации
-                SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-                editor.putBoolean("voice_activation_enabled", false);
-                editor.apply();
-                
-                // Обновляем состояние кнопки
-                updateVoiceActivationButtonState();
-            }
         }
     }
 
@@ -1167,97 +1140,51 @@ public class MainActivity extends BaseAccessibilityActivity implements
         dialog.show();
     }
 
-    private void setupVoiceActivationButton() {
-        // Добавляем кнопку для включения/выключения голосовой активации
-        binding.voiceActivationButton.setOnClickListener(v -> {
-            if (isVoiceActivationServiceRunning()) {
-                stopVoiceActivationService();
-            } else {
-                // Запускаем сервис без проверки разрешений
-                startVoiceActivationService();
-            }
-        });
-        
-        // Обновляем состояние кнопки
-        updateVoiceActivationButtonState();
-    }
-
     @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        // Handle wake phrase intents
+        handleIntent(intent);
     }
 
-    private boolean checkVoiceActivationPermissions() {
-        // Всегда возвращаем true, не будем запрашивать разрешения активно
-        return true;
-    }
-
-    private void updateVoiceActivationButtonState() {
-        boolean isRunning = isVoiceActivationServiceRunning();
-        binding.voiceActivationButton.setTextColor(
-                ContextCompat.getColor(this, 
-                isRunning ? R.color.active_color : R.color.inactive_color));
-        binding.voiceActivationButton.setText(
-                isRunning ? "Отключить голосовую активацию" : "Включить голосовую активацию");
-    }
-    
-    private boolean isVoiceActivationServiceRunning() {
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        return prefs.getBoolean("voice_activation_enabled", false);
-    }
-    
-    private void startVoiceActivationService() {
-        if (!isVoiceActivationServiceRunning()) {
-            // Проверяем разрешение на запись звука
-            if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) 
-                    != PackageManager.PERMISSION_GRANTED) {
-                // Вместо прямого запроса разрешений, перенаправляем на экран разрешений
-                startActivity(new Intent(this, PermissionRequestActivity.class));
-                return;
-            }
-            
-            // Проверяем разрешение на уведомления для Android 13+
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) 
-                        != PackageManager.PERMISSION_GRANTED) {
-                    // Перенаправляем на экран разрешений
-                    startActivity(new Intent(this, PermissionRequestActivity.class));
-                    return;
+    private void handleIntent(Intent intent) {
+        if (intent != null) {
+            boolean fromWakePhrase = intent.getBooleanExtra("FROM_WAKE_PHRASE", false);
+            if (fromWakePhrase) {
+                Log.d("MainActivity", "Started from wake phrase");
+                
+                // Make sure the activity is brought to the front
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    setShowWhenLocked(true);
+                    setTurnScreenOn(true);
                 }
+                
+                // Optionally, could start voice input or perform other actions
             }
-            
-            Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent);
-            } else {
-                startService(serviceIntent);
-            }
-            
-            // Сохраняем состояние сервиса
-            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-            editor.putBoolean("voice_activation_enabled", true);
-            editor.apply();
-            
-            updateVoiceActivationButtonState();
         }
     }
-    
-    private void stopVoiceActivationService() {
-        Intent serviceIntent = new Intent(this, VoiceActivationService.class);
-        stopService(serviceIntent);
+
+    /**
+     * Получение API ключа с учетом настроек сборки
+     */
+    private String getApiKey() {
+        // Проверяем флаг, использовать ли хардкод ключ из BuildConfig
+        if (BuildConfig.USE_HARDCODED_KEY) {
+            Log.d("MainActivity", "Используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
         
-        // Сохраняем состояние сервиса
-        SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-        editor.putBoolean("voice_activation_enabled", false);
-        editor.apply();
+        // Получаем сохраненный пользовательский ключ
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String apiKey = prefs.getString(API_KEY_PREF, null);
         
-        updateVoiceActivationButtonState();
-    }
-    
-    @Override
-    protected void onResume() {
-        super.onResume();
-        updateVoiceActivationButtonState();
+        // Если API ключ не установлен и используем ключ по умолчанию
+        if (apiKey == null || apiKey.isEmpty()) {
+            Log.w("MainActivity", "Пользовательский ключ не установлен, используется встроенный API ключ OpenRouter из BuildConfig");
+            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
+        }
+        
+        return apiKey;
     }
 
     private void showChatSettingsDialog() {
@@ -1340,12 +1267,12 @@ public class MainActivity extends BaseAccessibilityActivity implements
     public boolean onOptionsItemSelected(MenuItem item) {
         int id = item.getItemId();
         
-        if (id == R.id.action_weather_settings) {
-            Intent intent = new Intent(this, WeatherSettingsActivity.class);
+        if (id == R.id.action_unified_settings) {
+            Intent intent = new Intent(this, UnifiedSettingsActivity.class);
             startActivity(intent);
             return true;
-        } else if (id == R.id.action_voice_activation_settings) {
-            Intent intent = new Intent(this, VoiceActivationSettingsActivity.class);
+        } else if (id == R.id.action_weather_settings) {
+            Intent intent = new Intent(this, WeatherSettingsActivity.class);
             startActivity(intent);
             return true;
         } else if (id == R.id.action_chat_settings) {
@@ -1366,52 +1293,5 @@ public class MainActivity extends BaseAccessibilityActivity implements
         }
         
         return super.onOptionsItemSelected(item);
-    }
-
-    @Override
-    protected void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        // Handle wake phrase intents
-        handleIntent(intent);
-    }
-
-    private void handleIntent(Intent intent) {
-        if (intent != null) {
-            boolean fromWakePhrase = intent.getBooleanExtra("FROM_WAKE_PHRASE", false);
-            if (fromWakePhrase) {
-                Log.d("MainActivity", "Started from wake phrase");
-                
-                // Make sure the activity is brought to the front
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    setShowWhenLocked(true);
-                    setTurnScreenOn(true);
-                }
-                
-                // Optionally, could start voice input or perform other actions
-            }
-        }
-    }
-
-    /**
-     * Получение API ключа с учетом настроек сборки
-     */
-    private String getApiKey() {
-        // Проверяем флаг, использовать ли хардкод ключ из BuildConfig
-        if (BuildConfig.USE_HARDCODED_KEY) {
-            Log.d("MainActivity", "Используется встроенный API ключ OpenRouter из BuildConfig");
-            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
-        }
-        
-        // Получаем сохраненный пользовательский ключ
-        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        String apiKey = prefs.getString(API_KEY_PREF, null);
-        
-        // Если API ключ не установлен и используем ключ по умолчанию
-        if (apiKey == null || apiKey.isEmpty()) {
-            Log.w("MainActivity", "Пользовательский ключ не установлен, используется встроенный API ключ OpenRouter из BuildConfig");
-            return BuildConfig.DEFAULT_OPENROUTER_API_KEY;
-        }
-        
-        return apiKey;
     }
 }

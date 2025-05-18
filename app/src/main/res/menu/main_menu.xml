@@ -3,13 +3,14 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     
     <item
+        android:id="@+id/action_unified_settings"
+        android:title="Настройки"
+        android:icon="@android:drawable/ic_menu_preferences"
+        app:showAsAction="ifRoom" />
+    
+    <item
         android:id="@+id/action_weather_settings"
         android:title="@string/weather_settings"
-        app:showAsAction="never" />
-        
-    <item
-        android:id="@+id/action_voice_activation_settings"
-        android:title="Настройки голосовой активации"
         app:showAsAction="never" />
         
     <item

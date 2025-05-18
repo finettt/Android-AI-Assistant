@@ -41,6 +41,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    
+    <!-- Разрешения для системного ассистента -->
+    <uses-permission android:name="android.permission.BIND_VOICE_INTERACTION" />
+    <uses-permission android:name="android.permission.MANAGE_VOICE_KEYPHRASES" />
+    
     <uses-feature android:name="android.hardware.camera" android:required="true" />
     <uses-feature android:name="android.hardware.wifi" android:required="false" />
     <uses-feature android:name="android.hardware.bluetooth" android:required="false" />
@@ -99,6 +104,16 @@
             android:exported="false" />
 
         <activity
+            android:name=".UnifiedSettingsActivity"
+            android:exported="false"
+            android:label="Настройки"
+            android:parentActivityName=".MainActivity">
+            <meta-data
+                android:name="android.support.PARENT_ACTIVITY"
+                android:value=".MainActivity" />
+        </activity>
+
+        <activity
             android:name=".AccessibilitySettingsActivity"
             android:exported="false"
             android:label="Настройки доступности"
@@ -107,16 +122,6 @@
         <activity
             android:name=".WeatherSettingsActivity"
             android:label="@string/weather_settings"
-            android:parentActivityName=".MainActivity"
-            android:exported="false">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".MainActivity" />
-        </activity>
-
-        <activity
-            android:name=".VoiceActivationSettingsActivity"
-            android:label="Настройки голосовой активации"
             android:parentActivityName=".MainActivity"
             android:exported="false">
             <meta-data
@@ -134,12 +139,6 @@
                 android:value=".MainActivity" />
         </activity>
 
-        <service
-            android:name=".VoiceActivationService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="microphone" />
-
         <receiver
             android:name=".BootReceiver"
             android:enabled="true"
@@ -149,15 +148,6 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.QUICKBOOT_POWERON" />
                 <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </receiver>
-
-        <receiver
-            android:name=".VoiceActivationReceiver"
-            android:enabled="true"
-            android:exported="false">
-            <intent-filter>
-                <action android:name="STOP_VOICE_ACTIVATION" />
             </intent-filter>
         </receiver>
 
