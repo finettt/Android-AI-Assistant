@@ -7,7 +7,6 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.RecognitionListener;
@@ -76,6 +75,7 @@ import retrofit2.Response;
 import com.google.gson.Gson;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
+import android.os.Bundle;
 
 public class VoiceChatActivity extends BaseAccessibilityActivity implements TextToSpeech.OnInitListener, RecognitionListener {
     private ActivityVoiceChatBinding binding;
@@ -432,9 +432,9 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             }
         }
         
-        // Небольшая пауза для освобождения ресурсов
+        // Увеличиваем паузу для более надежного освобождения ресурсов
         try {
-            Thread.sleep(50);
+            Thread.sleep(150);
         } catch (InterruptedException e) {
             // Игнорируем
         }
@@ -445,6 +445,11 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
                 speechRecognizer.setRecognitionListener(this);
                 Log.d(TAG, "Speech recognizer initialized successfully");
+                
+                // Добавляем паузу после инициализации распознавателя
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    Log.d(TAG, "SpeechRecognizer initialization delay completed");
+                }, 100);
             } catch (Exception e) {
                 Log.e(TAG, "Error creating speech recognizer", e);
                 speechRecognizer = null;
@@ -557,94 +562,15 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                     new Handler(Looper.getMainLooper()).postDelayed(this::startListening, 1000);
                     return;
                 }
+                
+                // Добавляем дополнительную задержку после инициализации
+                Log.d(TAG, "Adding extra delay after SpeechRecognizer initialization");
+                new Handler(Looper.getMainLooper()).postDelayed(() -> startListeningAfterDelay(), 250);
+                return;
             }
             
-            // Создаем и настраиваем интент для распознавания речи
-            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
-            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-            intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
-            intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
-            
-            // Увеличиваем таймаут для лучшей работы
-            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 4000);
-            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
-            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
-            
-            // Сначала отменяем любое текущее распознавание для освобождения ресурсов
-            try {
-                speechRecognizer.cancel();
-            } catch (Exception e) {
-                Log.e(TAG, "Error canceling before start", e);
-            }
-            
-            // Очищаем последний частичный результат перед новым распознаванием
-            lastPartialResult = "";
-            
-            // Небольшая пауза для стабильности
-            new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                try {
-                    Log.d(TAG, "Starting speech recognition");
-                    speechRecognizer.startListening(intent);
-                    isListening = true;
-                    isProcessingSpeech = false;
-                    lastVoiceTime = System.currentTimeMillis();
-                    micButton.setImageResource(R.drawable.ic_stop);
-                    
-                    // Добавляем пустое сообщение пользователя в чат в начале распознавания
-                    if (currentUserMessage == null) {
-                        currentUserMessage = new ChatMessage("", true);
-                        chatAdapter.addMessage(currentUserMessage);
-                    }
-                    
-                    // Запускаем таймер для проверки тишины
-                    micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
-                    
-                    // Запускаем анимацию микрофона
-                    if (!pulsateAnimator.isRunning()) {
-                        pulsateAnimator.start();
-                        
-                        // Показываем эффект свечения экрана
-                        screenGlowEffect.setVisibility(View.VISIBLE);
-                        fadeInAnimator.start();
-                        borderPulsateAnimator.start();
-                    }
-                    
-                    // Дополнительная проверка, что прослушивание действительно запущено
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        if (!isListening) {
-                            Log.w(TAG, "Listening didn't start properly, retrying");
-                            initSpeechRecognizer();
-                            startListening();
-                        }
-                    }, 1500);
-                    
-                } catch (Exception e) {
-                    Log.e(TAG, "Error starting speech recognition in delayed handler", e);
-                    isListening = false;
-                    showError("Не удалось запустить распознавание речи");
-                    micButton.setImageResource(R.drawable.ic_mic);
-                    
-                    // Удаляем пустое сообщение при ошибке
-                    if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
-                        chatAdapter.removeMessage(currentUserMessage);
-                        currentUserMessage = null;
-                    }
-                    
-                    // Пытаемся перезапустить распознаватель
-                    new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                        // Пробуем полностью заново создать распознаватель
-                        if (speechRecognizer != null) {
-                            speechRecognizer.destroy();
-                            speechRecognizer = null;
-                        }
-                        initSpeechRecognizer();
-                        startListening();
-                    }, 1500);
-                }
-            }, 100);
-            
+            // Используем вспомогательный метод для запуска с дополнительными проверками
+            startListeningAfterDelay();
         } catch (Exception e) {
             Log.e(TAG, "Error starting speech recognition", e);
             showError("Не удалось запустить распознавание речи");
@@ -694,10 +620,24 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         }
         
         micButton.removeCallbacks(speechTimeoutRunnable);
-        speechRecognizer.stopListening();
+        try {
+            if (speechRecognizer != null) {
+                speechRecognizer.stopListening();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Error stopping listening", e);
+        }
         isListening = false;
         isProcessingSpeech = false;
         micButton.setImageResource(R.drawable.ic_mic);
+        
+        // Автоматически перезапускаем прослушивание с небольшой задержкой,
+        // чтобы обеспечить непрерывное распознавание
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            if (!isSpeaking) { // Не запускаем прослушивание, если сейчас говорит TTS
+                startListening();
+            }
+        }, 300);
     }
 
     private void speakText(String text) {
@@ -977,80 +917,38 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     @Override
     public void onEndOfSpeech() {
         Log.d("VoiceChatActivity", "End of speech detected");
-        stopListening();
-    }
-
-    @Override
-    public void onError(int error) {
-        String errorMessage;
-        switch (error) {
-            case SpeechRecognizer.ERROR_AUDIO:
-                errorMessage = "Ошибка записи аудио";
-                break;
-            case SpeechRecognizer.ERROR_CLIENT:
-                errorMessage = "Ошибка клиента";
-                break;
-            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
-                errorMessage = "Недостаточно прав";
-                break;
-            case SpeechRecognizer.ERROR_NETWORK:
-                errorMessage = "Ошибка сети";
-                break;
-            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
-                errorMessage = "Таймаут сети";
-                break;
-            case SpeechRecognizer.ERROR_NO_MATCH:
-                errorMessage = "Не распознано";
-                break;
-            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
-                errorMessage = "Распознаватель занят";
-                break;
-            case SpeechRecognizer.ERROR_SERVER:
-                errorMessage = "Ошибка сервера";
-                break;
-            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
-                errorMessage = "Таймаут распознавания";
-                break;
-            default:
-                errorMessage = "Ошибка распознавания";
-                break;
-        }
         
-        Log.e("VoiceChatActivity", "Speech recognition error: " + errorMessage + " (code " + error + ")");
+        // Не останавливаем прослушивание, а просто обрабатываем событие конца речи
+        // Результаты придут автоматически в onResults
         
-        // Обычная обработка ошибок для режима слушания команд
-        if (error == SpeechRecognizer.ERROR_NO_MATCH || 
-            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-            // Игнорируем эти ошибки, так как они часто возникают при нормальной работе
-            stopListening();
-            
-            // Удаляем пустое сообщение, если произошла ошибка распознавания
-            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
-                chatAdapter.removeMessage(currentUserMessage);
-                currentUserMessage = null;
-            }
-            
-            return;
-        }
-
-        final String finalErrorMessage = errorMessage;
+        // Меняем иконку на неактивный микрофон, но не останавливаем распознавание полностью
         runOnUiThread(() -> {
-            micButton.removeCallbacks(speechTimeoutRunnable);
-            if (error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
-                // Убираем Toast, используем метод showError для менее навязчивых уведомлений
-                // только для серьезных ошибок
-                if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS || 
-                    error == SpeechRecognizer.ERROR_NETWORK) {
-                    showError(finalErrorMessage);
-                    
-                    // Удаляем пустое сообщение при серьезной ошибке
-                    if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
-                        chatAdapter.removeMessage(currentUserMessage);
-                        currentUserMessage = null;
-                    }
+            if (pulsateAnimator.isRunning()) {
+                pulsateAnimator.cancel();
+                micButton.setScaleX(1.0f);
+                micButton.setScaleY(1.0f);
+                micButton.setAlpha(1.0f);
+                
+                // Останавливаем анимацию пульсации границ
+                if (borderPulsateAnimator.isRunning()) {
+                    borderPulsateAnimator.cancel();
+                }
+                
+                // Скрываем эффект свечения по краям экрана с анимацией
+                if (screenGlowEffect.getVisibility() == View.VISIBLE) {
+                    fadeOutAnimator.addListener(new android.animation.AnimatorListenerAdapter() {
+                        @Override
+                        public void onAnimationEnd(Animator animation) {
+                            screenGlowEffect.setVisibility(View.GONE);
+                            fadeOutAnimator.removeListener(this);
+                        }
+                    });
+                    fadeOutAnimator.start();
                 }
             }
-            stopListening();
+            
+            micButton.removeCallbacks(speechTimeoutRunnable);
+            // Не меняем состояние isListening, чтобы избежать рекурсивных вызовов
         });
     }
 
@@ -1074,6 +972,9 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 chatAdapter.removeMessage(currentUserMessage);
                 currentUserMessage = null;
             }
+            
+            // Автоматически перезапускаем прослушивание
+            restartListeningAfterResults();
             return;
         }
         
@@ -1098,6 +999,8 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             if (commandProcessor.processCommand(text)) {
                 // Сбрасываем текущее сообщение пользователя
                 currentUserMessage = null;
+                // Автоматически перезапускаем прослушивание
+                restartListeningAfterResults();
                 return;
             }
         }
@@ -1110,6 +1013,22 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         
         // Сбрасываем текущее сообщение пользователя
         currentUserMessage = null;
+        
+        // Автоматически перезапускаем прослушивание
+        restartListeningAfterResults();
+    }
+    
+    /**
+     * Перезапускает прослушивание после обработки результатов
+     */
+    private void restartListeningAfterResults() {
+        // Задержка перед перезапуском прослушивания
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            // Проверяем, не говорим ли мы сейчас через TTS
+            if (!isSpeaking && !isListening) {
+                startListening();
+            }
+        }, 500);
     }
 
     @Override
@@ -1443,5 +1362,202 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             chatAdapter.notifyDataSetChanged();
             recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
         }
+    }
+
+    /**
+     * Вспомогательный метод для запуска распознавания после задержки
+     */
+    private void startListeningAfterDelay() {
+        try {
+            // Создаем и настраиваем интент для распознавания речи
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ru-RU");
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5);
+            intent.putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, getPackageName());
+            
+            // Увеличиваем таймаут для лучшей работы
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 4000);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 1500);
+            
+            // Сначала отменяем любое текущее распознавание для освобождения ресурсов
+            try {
+                speechRecognizer.cancel();
+                
+                // Небольшая пауза между отменой и новым запуском
+                Thread.sleep(50);
+            } catch (Exception e) {
+                Log.e(TAG, "Error canceling before start", e);
+            }
+            
+            // Очищаем последний частичный результат перед новым распознаванием
+            lastPartialResult = "";
+            
+            Log.d(TAG, "Starting speech recognition");
+            speechRecognizer.startListening(intent);
+            isListening = true;
+            isProcessingSpeech = false;
+            lastVoiceTime = System.currentTimeMillis();
+            micButton.setImageResource(R.drawable.ic_stop);
+            
+            // Добавляем пустое сообщение пользователя в чат в начале распознавания
+            if (currentUserMessage == null) {
+                currentUserMessage = new ChatMessage("", true);
+                chatAdapter.addMessage(currentUserMessage);
+            }
+            
+            // Запускаем таймер для проверки тишины
+            micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
+            
+            // Запускаем анимацию микрофона
+            if (!pulsateAnimator.isRunning()) {
+                pulsateAnimator.start();
+                
+                // Показываем эффект свечения экрана
+                screenGlowEffect.setVisibility(View.VISIBLE);
+                fadeInAnimator.start();
+                borderPulsateAnimator.start();
+            }
+            
+            // Дополнительная проверка, что прослушивание действительно запущено
+            new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                if (!isListening) {
+                    Log.w(TAG, "Listening didn't start properly, retrying");
+                    fullResetAndRestartRecognition();
+                }
+            }, 1500);
+            
+        } catch (Exception e) {
+            Log.e(TAG, "Error starting speech recognition in delayed handler", e);
+            isListening = false;
+            showError("Не удалось запустить распознавание речи");
+            micButton.setImageResource(R.drawable.ic_mic);
+            
+            // Удаляем пустое сообщение при ошибке
+            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+                chatAdapter.removeMessage(currentUserMessage);
+                currentUserMessage = null;
+            }
+            
+            // Пытаемся перезапустить распознаватель с полной переинициализацией
+            fullResetAndRestartRecognition();
+        }
+    }
+    
+    /**
+     * Полная переинициализация и перезапуск распознавания речи
+     * после критической ошибки
+     */
+    private void fullResetAndRestartRecognition() {
+        new Handler(Looper.getMainLooper()).postDelayed(() -> {
+            Log.d(TAG, "Performing full reset of speech recognition system");
+            // Полностью освобождаем ресурсы
+            if (speechRecognizer != null) {
+                try {
+                    speechRecognizer.cancel();
+                    speechRecognizer.destroy();
+                    speechRecognizer = null;
+                } catch (Exception ex) {
+                    Log.e(TAG, "Error while destroying recognizer in full reset", ex);
+                }
+            }
+            
+            // Ждем перед повторной инициализацией
+            try {
+                Thread.sleep(300);
+            } catch (InterruptedException ie) {
+                // Игнорируем
+            }
+            
+            // Инициализируем снова
+            initSpeechRecognizer();
+            
+            // Ждем еще немного перед запуском распознавания
+            new Handler(Looper.getMainLooper()).postDelayed(this::startListening, 500);
+        }, 1000);
+    }
+
+    @Override
+    public void onError(int error) {
+        String errorMessage;
+        switch (error) {
+            case SpeechRecognizer.ERROR_AUDIO:
+                errorMessage = "Ошибка записи аудио";
+                break;
+            case SpeechRecognizer.ERROR_CLIENT:
+                errorMessage = "Ошибка клиента";
+                break;
+            case SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS:
+                errorMessage = "Недостаточно прав";
+                break;
+            case SpeechRecognizer.ERROR_NETWORK:
+                errorMessage = "Ошибка сети";
+                break;
+            case SpeechRecognizer.ERROR_NETWORK_TIMEOUT:
+                errorMessage = "Таймаут сети";
+                break;
+            case SpeechRecognizer.ERROR_NO_MATCH:
+                errorMessage = "Не распознано";
+                break;
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY:
+                errorMessage = "Распознаватель занят";
+                break;
+            case SpeechRecognizer.ERROR_SERVER:
+                errorMessage = "Ошибка сервера";
+                break;
+            case SpeechRecognizer.ERROR_SPEECH_TIMEOUT:
+                errorMessage = "Таймаут распознавания";
+                break;
+            default:
+                errorMessage = "Ошибка распознавания";
+                break;
+        }
+        
+        Log.e("VoiceChatActivity", "Speech recognition error: " + errorMessage + " (code " + error + ")");
+        
+        // Обновляем состояние
+        isListening = false;
+        
+        // Очищаем UI
+        runOnUiThread(() -> {
+            micButton.removeCallbacks(speechTimeoutRunnable);
+            
+            // Удаляем пустое сообщение, если произошла ошибка
+            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+                chatAdapter.removeMessage(currentUserMessage);
+                currentUserMessage = null;
+            }
+            
+            // Обрабатываем ошибки и перезапускаем распознавание
+            if (error == SpeechRecognizer.ERROR_CLIENT) {
+                // При ошибке клиента проводим полную переинициализацию
+                Log.d(TAG, "Handling ERROR_CLIENT with full reset");
+                fullResetAndRestartRecognition();
+            } else if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+                // При ошибке "занято" делаем полный сброс с паузой
+                Log.d(TAG, "Handling ERROR_RECOGNIZER_BUSY with full reset");
+                fullResetAndRestartRecognition();
+            } else if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
+                // При таймауте или отсутствии совпадений просто перезапускаем
+                Log.d(TAG, "Restarting recognition after no match or timeout");
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    if (!isSpeaking) {
+                        startListening();
+                    }
+                }, 300);
+            } else {
+                // Для других ошибок делаем более длительную паузу и полный сброс
+                Log.d(TAG, "Handling other error with delay and full reset");
+                if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS || 
+                    error == SpeechRecognizer.ERROR_NETWORK) {
+                    showError(errorMessage);
+                }
+                new Handler(Looper.getMainLooper()).postDelayed(() -> {
+                    fullResetAndRestartRecognition();
+                }, 1000);
+            }
+        });
     }
 } 

@@ -119,6 +119,12 @@ public class VoiceActivationSettingsActivity extends BaseAccessibilityActivity {
             // Переключатель включения/выключения сервиса
             SwitchPreferenceCompat enabledPreference = findPreference("voice_activation_enabled");
             if (enabledPreference != null) {
+                // Проверяем текущее состояние настройки
+                boolean isEnabled = prefs.getBoolean("voice_activation_enabled", true); // По умолчанию - включено
+                
+                // Устанавливаем состояние переключателя
+                enabledPreference.setChecked(isEnabled);
+                
                 enabledPreference.setOnPreferenceChangeListener((preference, newValue) -> {
                     boolean enabled = (Boolean) newValue;
                     

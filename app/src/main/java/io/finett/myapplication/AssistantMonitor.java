@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.BroadcastReceiver;
+import android.content.SharedPreferences;
 import android.util.Log;
 
 /**
@@ -12,6 +13,9 @@ import android.util.Log;
 public class AssistantMonitor {
     private static final String TAG = "AssistantMonitor";
     private static final String ACTION_ASSIST_STARTED = "io.finett.myapplication.ACTION_ASSIST_STARTED";
+    private static final String PREFS_NAME = "assistant_monitor";
+    private static final String KEY_LAST_ASSIST_TIME = "last_assist_time";
+    private static final long ASSIST_CHECK_TIMEOUT = 5000; // 5 секунд для проверки запуска
     
     /**
      * Приемник широковещательных сообщений для мониторинга запуска ассистента
@@ -27,6 +31,17 @@ public class AssistantMonitor {
         public void onReceive(Context context, Intent intent) {
             if (ACTION_ASSIST_STARTED.equals(intent.getAction())) {
                 Log.d(TAG, "Получено сообщение о запуске ассистента");
+                
+                // Сохраняем время последнего запуска ассистента
+                if (context != null) {
+                    try {
+                        SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+                        prefs.edit().putLong(KEY_LAST_ASSIST_TIME, System.currentTimeMillis()).apply();
+                    } catch (Exception e) {
+                        Log.e(TAG, "Ошибка при сохранении времени запуска ассистента", e);
+                    }
+                }
+                
                 if (callback != null) {
                     callback.onAssistantStarted();
                 }
@@ -52,12 +67,60 @@ public class AssistantMonitor {
         }
         
         try {
+            // Сохраняем время запуска в SharedPreferences
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            prefs.edit().putLong(KEY_LAST_ASSIST_TIME, System.currentTimeMillis()).apply();
+            
+            // Отправляем широковещательное сообщение
             Intent intent = new Intent(ACTION_ASSIST_STARTED);
             context.sendBroadcast(intent);
             Log.d(TAG, "Отправлено уведомление о запуске ассистента");
         } catch (Exception e) {
             Log.e(TAG, "Ошибка при отправке уведомления о запуске ассистента", e);
         }
+    }
+    
+    /**
+     * Проверяет, был ли запущен системный ассистент в последние секунды
+     * 
+     * @return true, если ассистент был запущен недавно
+     */
+    public static boolean wasAssistantLaunched() {
+        try {
+            // Проверяем, запускался ли ассистент в последние ASSIST_CHECK_TIMEOUT миллисекунд
+            // Этот метод не зависит от контекста, так как может вызываться из разных мест
+            
+            // Так как метод статический и работает без контекста, используем глобальное
+            // статическое поле для хранения времени последнего запуска ассистента
+            long currentTime = System.currentTimeMillis();
+            
+            // Проверяем последнее время запуска (хранится статически)
+            if (lastAssistStartTime > 0) {
+                boolean recentlyStarted = (currentTime - lastAssistStartTime) < ASSIST_CHECK_TIMEOUT;
+                if (recentlyStarted) {
+                    Log.d(TAG, "Ассистент был запущен недавно (проверка по времени)");
+                    return true;
+                }
+            }
+            
+            Log.d(TAG, "Ассистент не был запущен недавно");
+            return false;
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при проверке запуска ассистента", e);
+            return false;
+        }
+    }
+    
+    // Статическое поле для хранения времени последнего запуска ассистента
+    private static long lastAssistStartTime = 0;
+    
+    /**
+     * Обновляет время последнего запуска ассистента
+     * (используется внутри приложения при запуске ассистента)
+     */
+    public static void updateLastAssistStartTime() {
+        lastAssistStartTime = System.currentTimeMillis();
+        Log.d(TAG, "Обновлено время последнего запуска ассистента: " + lastAssistStartTime);
     }
     
     /**

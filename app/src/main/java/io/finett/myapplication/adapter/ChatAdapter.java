@@ -37,6 +37,20 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private static final int VIEW_TYPE_MESSAGE = 0;
     private static final int VIEW_TYPE_LOADING = 1;
 
+    // Управление компактным режимом отображения сообщений
+    private boolean compactMode = false;
+    
+    public void setCompactMode(boolean compactMode) {
+        this.compactMode = compactMode;
+    }
+    
+    // Управление автоматической прокруткой
+    private boolean autoscrollEnabled = true;
+    
+    public void setAutoscrollEnabled(boolean enabled) {
+        this.autoscrollEnabled = enabled;
+    }
+
     public ChatAdapter(Context context, OnAttachmentClickListener attachmentClickListener) {
         this.context = context;
         this.attachmentClickListener = attachmentClickListener;

@@ -223,6 +223,24 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".VoiceActivationReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="STOP_VOICE_ACTIVATION" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".VoiceChatClosedReceiver"
+            android:enabled="true"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="io.finett.myapplication.ACTION_VOICE_CHAT_CLOSED" />
+            </intent-filter>
+        </receiver>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

@@ -1266,6 +1266,10 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         isListening = false;
         isProcessingSpeech = false;
         
+        // Сохраняем локальную копию для использования в лямбда-выражении
+        final String finalErrorMessage = errorMessage;
+        final boolean displayErrorMessage = showErrorMessage;
+        
         // Обновляем UI
         runOnUiThread(() -> {
             systemAssistantMic.setImageResource(R.drawable.ic_mic);
@@ -1277,9 +1281,9 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
             }
             
             // Показываем сообщение об ошибке только если это критическая ошибка
-            if (showErrorMessage) {
+            if (displayErrorMessage) {
                 AssistantMessage assistantErrorMessage = new AssistantMessage(
-                        "Ошибка распознавания речи: " + errorMessage, 
+                        "Ошибка распознавания речи: " + finalErrorMessage, 
                         "Ошибка", 
                         false);
                 messageAdapter.addMessage(assistantErrorMessage);

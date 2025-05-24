@@ -10,7 +10,7 @@
             android:key="voice_activation_enabled"
             android:title="Включить голосовую активацию"
             android:summary="Реагировать на активационные фразы, даже когда приложение не на переднем плане"
-            android:defaultValue="false"
+            android:defaultValue="true"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 
@@ -40,9 +40,16 @@
         app:iconSpaceReserved="false">
         
         <SwitchPreferenceCompat
+            android:key="launch_system_assistant"
+            android:title="Запускать системного ассистента"
+            android:summary="Запускать системного ассистента при распознавании ключевой фразы"
+            android:defaultValue="true"
+            app:iconSpaceReserved="false" />
+        
+        <SwitchPreferenceCompat
             android:key="open_voice_chat_on_wake"
             android:title="Открывать голосовой чат"
-            android:summary="Автоматически открывать голосовой чат при распознавании ключевой фразы"
+            android:summary="Автоматически открывать голосовой чат при распознавании ключевой фразы (если не запускается системный ассистент)"
             android:defaultValue="true"
             app:iconSpaceReserved="false" />
         

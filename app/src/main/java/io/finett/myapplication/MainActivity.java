@@ -19,8 +19,10 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.widget.ArrayAdapter;
+import android.widget.CheckBox;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -168,6 +170,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
         applyAccessibilitySettings();
 
         weatherService = new WeatherService(this);
+        
+        // Автоматически запускаем VoiceActivationService при старте приложения
+        startVoiceActivationService();
         
         // Check for wake phrase intent
         handleIntent(getIntent());
@@ -1085,35 +1090,30 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private void showThemeSelectionDialog() {
         MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
         builder.setTitle("Выбор темы");
-
-        // Получаем текущую тему
-        String currentTheme = accessibilityManager.getAppTheme();
-        boolean isHighContrast = accessibilityManager.isHighContrastEnabled();
         
-        // Создаем массив опций
-        String[] options = {
-                getString(R.string.theme_light), 
-                getString(R.string.theme_dark),
-                getString(R.string.theme_system),
-                getString(R.string.high_contrast_theme)
-        };
+        // Опции для выбора
+        String[] options = {"Светлая тема", "Темная тема", "Системная тема", "Высококонтрастная тема"};
         
-        // Определяем выбранный пункт
-        int checkedItem;
-        if (isHighContrast) {
-            checkedItem = 3; // Высококонтрастная тема
-        } else {
-            switch (currentTheme) {
-                case "light":
-                    checkedItem = 0;
-                    break;
-                case "dark":
-                    checkedItem = 1;
-                    break;
-                case "system":
-                default:
-                    checkedItem = 2;
-                    break;
+        // Устанавливаем отмеченный пункт в зависимости от текущей темы
+        int checkedItem = 2; // По умолчанию - системная тема
+        if (accessibilityManager != null) {
+            boolean isHighContrast = accessibilityManager.isHighContrastEnabled();
+            if (isHighContrast) {
+                checkedItem = 3; // Высококонтрастная
+            } else {
+                String currentTheme = accessibilityManager.getAppTheme();
+                switch (currentTheme) {
+                    case "light":
+                        checkedItem = 0;
+                        break;
+                    case "dark":
+                        checkedItem = 1;
+                        break;
+                    case "system":
+                    default:
+                        checkedItem = 2;
+                        break;
+                }
             }
         }
         
@@ -1147,6 +1147,81 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         AlertDialog dialog = builder.create();
         dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
+        });
+        dialog.show();
+    }
+
+    /**
+     * Показывает диалог настроек чата
+     */
+    private void showChatSettingsDialog() {
+        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
+        builder.setTitle("Настройки чата");
+        
+        // Создаем layout для диалога
+        LinearLayout layout = new LinearLayout(this);
+        layout.setOrientation(LinearLayout.VERTICAL);
+        layout.setPadding(32, 16, 32, 0);
+        
+        // Получаем текущие настройки
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        
+        // Переключатель звуковых уведомлений
+        CheckBox soundNotificationsCheckbox = new CheckBox(this);
+        soundNotificationsCheckbox.setText("Звуковые уведомления");
+        boolean soundNotificationsEnabled = prefs.getBoolean("sound_notifications_enabled", true);
+        soundNotificationsCheckbox.setChecked(soundNotificationsEnabled);
+        layout.addView(soundNotificationsCheckbox);
+        
+        // Переключатель автопрокрутки
+        CheckBox autoscrollCheckbox = new CheckBox(this);
+        autoscrollCheckbox.setText("Автоматическая прокрутка");
+        boolean autoscrollEnabled = prefs.getBoolean("autoscroll_enabled", true);
+        autoscrollCheckbox.setChecked(autoscrollEnabled);
+        layout.addView(autoscrollCheckbox);
+        
+        // Переключатель режима компактного отображения сообщений
+        CheckBox compactModeCheckbox = new CheckBox(this);
+        compactModeCheckbox.setText("Компактный режим");
+        boolean compactModeEnabled = prefs.getBoolean("compact_mode_enabled", false);
+        compactModeCheckbox.setChecked(compactModeEnabled);
+        layout.addView(compactModeCheckbox);
+        
+        // Переключатель сохранения истории
+        CheckBox saveHistoryCheckbox = new CheckBox(this);
+        saveHistoryCheckbox.setText("Сохранять историю чатов");
+        boolean saveHistoryEnabled = prefs.getBoolean("save_history_enabled", true);
+        saveHistoryCheckbox.setChecked(saveHistoryEnabled);
+        layout.addView(saveHistoryCheckbox);
+        
+        // Добавляем layout в диалог
+        builder.setView(layout);
+        
+        builder.setPositiveButton("Сохранить", (dialog, which) -> {
+            // Сохраняем настройки
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putBoolean("sound_notifications_enabled", soundNotificationsCheckbox.isChecked());
+            editor.putBoolean("autoscroll_enabled", autoscrollCheckbox.isChecked());
+            editor.putBoolean("compact_mode_enabled", compactModeCheckbox.isChecked());
+            editor.putBoolean("save_history_enabled", saveHistoryCheckbox.isChecked());
+            editor.apply();
+            
+            // Применяем настройки к текущему чату
+            if (chatAdapter != null) {
+                chatAdapter.setCompactMode(compactModeCheckbox.isChecked());
+                chatAdapter.setAutoscrollEnabled(autoscrollCheckbox.isChecked());
+                chatAdapter.notifyDataSetChanged();
+            }
+            
+            Toast.makeText(this, "Настройки сохранены", Toast.LENGTH_SHORT).show();
+        });
+        
+        builder.setNegativeButton("Отмена", null);
+        
+        AlertDialog dialog = builder.create();
+        dialog.setOnShowListener(dialogInterface -> {
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
             dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
         });
         dialog.show();
@@ -1254,6 +1329,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 lastLaunchStr = sdf.format(new java.util.Date(lastLaunchTime));
             }
             
+            // Показываем диалог с инструкциями перед открытием системных настроек
+            showAssistantSetupInstructionsDialog();
+            
             Toast.makeText(this, 
                     "Статистика ассистента:\n" +
                     "Количество запусков: " + launchCount + "\n" +
@@ -1283,6 +1361,48 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     /**
+     * Показывает диалог с инструкциями по настройке системного ассистента
+     */
+    private void showAssistantSetupInstructionsDialog() {
+        AlertDialog.Builder builder = new MaterialAlertDialogBuilder(this);
+        builder.setTitle("Настройка системного ассистента");
+        
+        // Создаем ScrollView для прокрутки длинного текста
+        ScrollView scrollView = new ScrollView(this);
+        TextView textView = new TextView(this);
+        int padding = (int) (getResources().getDisplayMetrics().density * 16);
+        textView.setPadding(padding, padding, padding, padding);
+        
+        String instructions = 
+                "Для установки приложения в качестве ассистента по умолчанию:\n\n" +
+                "1. В открывшихся настройках найдите пункт \"Приложение для голосового ввода\" " +
+                "или \"Цифровой помощник\"\n\n" +
+                "2. Выберите \"Алан\" из списка доступных ассистентов\n\n" +
+                "3. На некоторых устройствах может потребоваться дополнительное подтверждение\n\n" +
+                "4. После активации, вы можете вызвать ассистента:\n" +
+                "   • Зажав кнопку Home (на устройствах с кнопками)\n" +
+                "   • Свайпом из нижнего угла (на устройствах с жестами)\n" +
+                "   • Произнеся \"Привет, Алан\" (если включена голосовая активация)\n\n" +
+                "5. Для более удобного использования рекомендуется также настроить автоматический запуск при включении устройства в настройках приложения\n\n" +
+                "Примечание: на некоторых устройствах (особенно Huawei, Xiaomi) могут быть дополнительные ограничения, требующие отключения оптимизации батареи для приложения.";
+        
+        textView.setText(instructions);
+        scrollView.addView(textView);
+        builder.setView(scrollView);
+        
+        builder.setPositiveButton("Продолжить", (dialog, which) -> {
+            dialog.dismiss();
+        });
+        
+        builder.setNegativeButton("Отмена", (dialog, which) -> {
+            dialog.dismiss();
+        });
+        
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
+    /**
      * Регистрирует слушателя событий запуска ассистента
      */
     private void registerAssistantLaunchListener() {
@@ -1301,5 +1421,27 @@ public class MainActivity extends BaseAccessibilityActivity implements
                                 Toast.LENGTH_SHORT).show();
                     });
                 });
+    }
+
+    /**
+     * Запускает сервис голосовой активации, если он не запущен
+     */
+    private void startVoiceActivationService() {
+        try {
+            SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+            boolean voiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", true);
+            
+            if (voiceActivationEnabled) {
+                Log.d("MainActivity", "Автоматический запуск сервиса голосовой активации");
+                Intent serviceIntent = new Intent(this, VoiceActivationService.class);
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent);
+                } else {
+                    startService(serviceIntent);
+                }
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Ошибка при запуске сервиса голосовой активации", e);
+        }
     }
 }

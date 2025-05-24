@@ -43,10 +43,19 @@ public class VoiceInteractionSessionService extends android.service.voice.VoiceI
             Log.d(TAG, "Сессия отображена с флагами: " + showFlags);
             Log.d(TAG, "Аргументы: " + (args != null ? args.toString() : "null"));
             
+            // Обновляем время последнего запуска ассистента
+            AssistantMonitor.updateLastAssistStartTime();
+            
             // Запускаем активность системного ассистента вместо отображения стандартного UI
             Context context = getContext();
             if (context != null) {
                 try {
+                    // Отправляем уведомление о запуске ассистента
+                    AssistantMonitor.notifyAssistantStarted(context);
+                    
+                    // Записываем запуск ассистента в статистику
+                    AssistantSettings.recordLaunch(context);
+                    
                     // Используем вспомогательный класс для запуска системного ассистента
                     Log.d(TAG, "Запуск SystemAssistantActivity из сессии через AssistantLauncher");
                     AssistantLauncher.launchSystemAssistantActivity(context);

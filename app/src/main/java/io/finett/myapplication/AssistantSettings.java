@@ -247,4 +247,33 @@ public class AssistantSettings {
             Log.e(TAG, "Ошибка при сохранении настройки автоматического запуска голосового чата", e);
         }
     }
+    
+    /**
+     * Записывает запуск ассистента и обновляет статистику использования
+     * 
+     * @param context Контекст приложения
+     * @return Новое значение счетчика запусков
+     */
+    public static int recordLaunch(Context context) {
+        if (context == null) {
+            return 0;
+        }
+        
+        try {
+            SharedPreferences prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE);
+            int currentCount = prefs.getInt(KEY_LAUNCH_COUNT, 0);
+            int newCount = currentCount + 1;
+            
+            SharedPreferences.Editor editor = prefs.edit();
+            editor.putInt(KEY_LAUNCH_COUNT, newCount);
+            editor.putLong(KEY_LAST_LAUNCH_TIME, System.currentTimeMillis());
+            editor.apply();
+            
+            Log.d(TAG, "Записан запуск ассистента. Всего запусков: " + newCount);
+            return newCount;
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при записи запуска ассистента", e);
+            return 0;
+        }
+    }
 } 

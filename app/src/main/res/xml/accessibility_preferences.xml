@@ -3,6 +3,25 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
 
     <PreferenceCategory
+        android:title="Системный ассистент"
+        app:iconSpaceReserved="false">
+
+        <Preference
+            android:key="system_assistant_setup"
+            android:title="Настроить системного ассистента"
+            android:summary="Установить приложение как ассистент по умолчанию"
+            app:iconSpaceReserved="false" />
+            
+        <SwitchPreferenceCompat
+            android:defaultValue="false"
+            android:key="auto_launch_assistant"
+            android:summary="Автоматически запускать при включении устройства"
+            android:title="Запуск при старте системы"
+            app:iconSpaceReserved="false" />
+
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="Текст"
         app:iconSpaceReserved="false">
 
