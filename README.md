@@ -45,6 +45,19 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 - SMS messaging
 - Safety confirmation dialogs
 
+## Technology Stack
+
+For a comprehensive overview of all technologies used in this project, please see the [Technical Stack](TECH_STACK.md) document.
+
+Key technologies include:
+- Java for core development
+- Jetpack components (ViewModel, LiveData)
+- CameraX for camera operations
+- Retrofit for network requests
+- Material Design components
+- TextToSpeech and SpeechRecognizer for voice interactions
+- OpenRouter API for AI responses (Qwen 3 model)
+
 ## Installation
 
 ### Requirements
@@ -139,15 +152,6 @@ app/
 │   └── androidTest/
 └── build.gradle
 ```
-
-### Technologies
-- Java for core development
-- Jetpack components (ViewModel, LiveData)
-- CameraX for camera operations
-- Retrofit for network requests
-- Material Design components
-- TextToSpeech and SpeechRecognizer for voice interactions
-- OpenRouter API for AI responses
 
 ### Project Cleanup
 For deep project cleanup, use:
