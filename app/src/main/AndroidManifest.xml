@@ -64,6 +64,7 @@
     </queries>
 
     <application
+        android:name=".MyApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -97,6 +98,7 @@
             android:name=".VoiceChatActivity"
             android:exported="true"
             android:launchMode="singleTask"
+            android:configChanges="orientation|keyboardHidden|screenSize|uiMode"
             android:showOnLockScreen="true"
             android:showWhenLocked="true"
             android:turnScreenOn="true">

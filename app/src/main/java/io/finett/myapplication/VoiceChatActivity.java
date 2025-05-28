@@ -69,6 +69,7 @@ import io.finett.myapplication.model.SystemPrompt;
 import io.finett.myapplication.util.CommandProcessor;
 import io.finett.myapplication.base.BaseAccessibilityActivity;
 import io.finett.myapplication.util.ContextInfoProvider;
+import io.finett.myapplication.util.TypingAnimator;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -76,6 +77,12 @@ import com.google.gson.Gson;
 import android.app.AlarmManager;
 import android.app.PendingIntent;
 import android.os.Bundle;
+import okhttp3.ResponseBody;
+import io.finett.myapplication.util.SuggestionGenerator;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
+import android.widget.HorizontalScrollView;
+import android.view.Window;
 
 public class VoiceChatActivity extends BaseAccessibilityActivity implements TextToSpeech.OnInitListener, RecognitionListener {
     private ActivityVoiceChatBinding binding;
@@ -95,11 +102,20 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private boolean isProcessingSpeech = false;
     private long lastVoiceTime = 0;
     
+    // Флаг для отслеживания HTTP запросов
+    private volatile boolean isHttpRequestInProgress = false;
+    
     // Добавляем поле для хранения текущего сообщения пользователя
     private ChatMessage currentUserMessage = null;
     
     // Добавляем переменную для хранения последнего частичного результата
     private String lastPartialResult = "";
+    
+    // Добавляем флаг для отслеживания явного нажатия кнопки остановки
+    private boolean isExplicitlyStopped = false;
+    
+    // Константа для ключа в SharedPreferences
+    private static final String KEY_EXPLICITLY_STOPPED = "mic_explicitly_stopped";
     
     private final Runnable speechTimeoutRunnable = new Runnable() {
         @Override
@@ -127,12 +143,21 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private Animator borderPulsateAnimator;
     private Handler typingHandler = new Handler(Looper.getMainLooper());
     private Random random = new Random();
+    private SuggestionGenerator suggestionGenerator;
+    private HorizontalScrollView suggestionsScrollView;
+    private ChipGroup suggestionsChipGroup;
+    
+    // Добавляем аниматор печатания текста
+    private TypingAnimator typingAnimator;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         binding = ActivityVoiceChatBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
+        
+        // Загружаем сохраненное состояние флага явной остановки микрофона
+        isExplicitlyStopped = loadExplicitlyStoppedState();
         
         // Release microphone resources that might be in use
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
@@ -193,13 +218,27 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         borderPulsateAnimator.setTarget(screenGlowEffect);
 
         setupRecyclerView();
+        
+        // Восстанавливаем сообщения, если есть сохраненное состояние
+        if (savedInstanceState != null) {
+            ArrayList<ChatMessage> savedMessages = savedInstanceState.getParcelableArrayList("messages");
+            if (savedMessages != null && !savedMessages.isEmpty()) {
+                messagesList = savedMessages;
+                chatAdapter.setMessages(messagesList);
+            }
+        }
+        
         setupMicButton();
         setupCameraButton();
         setupApi();
         setupContextInfo();
         checkPermissionAndInitRecognizer();
         initTextToSpeech();
-
+        setupSuggestions();
+        
+        // Инициализируем аниматор печатания текста
+        typingAnimator = new TypingAnimator(chatAdapter);
+        
         commandProcessor = new CommandProcessor(
             this, 
             textToSpeech, 
@@ -243,8 +282,10 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         if (intent != null) {
             // Start listening automatically based on preferences
             SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-            boolean autoListen = prefs.getBoolean("voice_chat_auto_listen", true);
-            if (autoListen) {
+            boolean autoListen = prefs.getBoolean("voice_chat_auto_listen", false);
+            
+            // Запускаем прослушивание только если автозапуск включен И пользователь явно не остановил микрофон
+            if (autoListen && !isExplicitlyStopped) {
                 startListening();
             }
         }
@@ -268,11 +309,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             // Если нет API ключа и не используем хардкодный ключ, запрашиваем ключ
             showApiKeyDialog();
         } else if (BuildConfig.USE_HARDCODED_KEY || !(apiKey == null || apiKey.isEmpty())) {
-            // Показываем приветственное сообщение с именем пользователя
-            ChatMessage welcomeMessage = new ChatMessage(
-                    "Привет, " + userName + "! Я - ваш голосовой помощник. Чем могу помочь?", false);
-            chatAdapter.addMessage(welcomeMessage);
-            speakText(welcomeMessage.getText());
+            // Больше не показываем приветственное сообщение
         }
     }
 
@@ -327,12 +364,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 }
                 apiKey = key;
                 
-                // Добавляем приветственное сообщение с именем пользователя
-                String userName = contextInfoProvider.getUserName();
-                ChatMessage welcomeMessage = new ChatMessage(
-                        "Привет, " + userName + "! Я - ваш голосовой помощник. Чем могу помочь?", false);
-                chatAdapter.addMessage(welcomeMessage);
-                speakText(welcomeMessage.getText());
+                // Больше не добавляем приветственное сообщение
             }
         });
         
@@ -399,12 +431,39 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     private void setupMicButton() {
         micButton.setOnClickListener(v -> {
             if (!isListening) {
+                // Пользователь нажал на кнопку для начала прослушивания
+                isExplicitlyStopped = false;
+                // Сохраняем состояние в SharedPreferences
+                saveExplicitlyStoppedState(false);
                 checkPermissionAndInitRecognizer();
                 startListening();
                 hideEmptyState();
             } else {
+                // Пользователь явно нажал на кнопку для остановки прослушивания
+                isExplicitlyStopped = true;
+                // Сохраняем состояние в SharedPreferences
+                saveExplicitlyStoppedState(true);
                 stopListening();
             }
+        });
+        
+        // Добавляем обработчик долгого нажатия для сброса состояния флага
+        micButton.setOnLongClickListener(v -> {
+            // Сбрасываем флаг явной остановки
+            isExplicitlyStopped = false;
+            saveExplicitlyStoppedState(false);
+            
+            // Показываем сообщение пользователю
+            Toast.makeText(this, "Микрофон разблокирован", Toast.LENGTH_SHORT).show();
+            
+            // Запускаем микрофон
+            if (!isListening) {
+                checkPermissionAndInitRecognizer();
+                startListening();
+                hideEmptyState();
+            }
+            
+            return true; // Возвращаем true, чтобы показать, что событие обработано
         });
     }
 
@@ -421,43 +480,51 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     }
 
     private void initSpeechRecognizer() {
-        // Сначала уничтожаем старый распознаватель, если он существует
-        if (speechRecognizer != null) {
-            try {
-                speechRecognizer.cancel();
-                speechRecognizer.destroy();
-                speechRecognizer = null;
-            } catch (Exception e) {
-                Log.e(TAG, "Error destroying old speech recognizer", e);
-            }
-        }
-        
-        // Увеличиваем паузу для более надежного освобождения ресурсов
         try {
-            Thread.sleep(150);
-        } catch (InterruptedException e) {
-            // Игнорируем
-        }
-        
-        // Проверяем доступность распознавания речи
-        if (SpeechRecognizer.isRecognitionAvailable(this)) {
-            try {
-                speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
-                speechRecognizer.setRecognitionListener(this);
-                Log.d(TAG, "Speech recognizer initialized successfully");
-                
-                // Добавляем паузу после инициализации распознавателя
-                new Handler(Looper.getMainLooper()).postDelayed(() -> {
-                    Log.d(TAG, "SpeechRecognizer initialization delay completed");
-                }, 100);
-            } catch (Exception e) {
-                Log.e(TAG, "Error creating speech recognizer", e);
-                speechRecognizer = null;
-                showError("Ошибка инициализации распознавания речи");
+            // Сначала очищаем существующие ресурсы
+            if (speechRecognizer != null) {
+                try {
+                    speechRecognizer.cancel();
+                    speechRecognizer.destroy();
+                    speechRecognizer = null;
+                    // Небольшая пауза для освобождения ресурсов
+                    Thread.sleep(100);
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при уничтожении предыдущего распознавателя", e);
+                }
             }
-        } else {
-            Log.e(TAG, "Speech recognition is not available on this device");
-            Toast.makeText(this, "Распознавание речи недоступно на этом устройстве", Toast.LENGTH_SHORT).show();
+            
+            // Проверяем доступность распознавания речи
+            if (!SpeechRecognizer.isRecognitionAvailable(this)) {
+                Log.e(TAG, "Распознавание речи недоступно на этом устройстве");
+                showError("Распознавание речи недоступно на этом устройстве");
+                return;
+            }
+            
+            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+            if (speechRecognizer == null) {
+                Log.e(TAG, "Не удалось создать SpeechRecognizer");
+                showError("Не удалось инициализировать распознавание речи");
+                return;
+            }
+            
+            speechRecognizer.setRecognitionListener(this);
+            
+            // Логируем успешную инициализацию
+            Log.d(TAG, "SpeechRecognizer успешно инициализирован");
+        } catch (Exception e) {
+            Log.e(TAG, "Критическая ошибка при инициализации распознавателя речи: " + e.getMessage(), e);
+            showError("Ошибка инициализации распознавания речи: " + e.getMessage());
+            
+            // Убеждаемся, что ресурсы освобождены
+            if (speechRecognizer != null) {
+                try {
+                    speechRecognizer.destroy();
+                } catch (Exception ex) {
+                    // Игнорируем ошибки при освобождении
+                }
+                speechRecognizer = null;
+            }
         }
     }
 
@@ -482,13 +549,19 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 @Override
                 public void onDone(String utteranceId) {
                     isSpeaking = false;
+                    // Запускаем прослушивание после завершения речи только если пользователь не нажал кнопку остановки
+                    if (!isExplicitlyStopped) {
                     runOnUiThread(() -> startListening());
+                    }
                 }
 
                 @Override
                 public void onError(String utteranceId) {
                     isSpeaking = false;
+                    // Запускаем прослушивание после ошибки речи только если пользователь не нажал кнопку остановки
+                    if (!isExplicitlyStopped) {
                     runOnUiThread(() -> startListening());
+                    }
                 }
             });
             
@@ -545,6 +618,12 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
 
     private void startListening() {
         if (isListening) return;
+        
+        // Проверяем, не выполняется ли HTTP запрос
+        if (isHttpRequestInProgress) {
+            Log.d(TAG, "HTTP request in progress, skipping microphone activation");
+            return;
+        }
         
         try {
             // Если распознаватель не инициализирован, пробуем инициализировать его
@@ -631,13 +710,27 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         isProcessingSpeech = false;
         micButton.setImageResource(R.drawable.ic_mic);
         
-        // Автоматически перезапускаем прослушивание с небольшой задержкой,
-        // чтобы обеспечить непрерывное распознавание
+        // Удаляем пустое сообщение, если оно было создано, но осталось пустым
+        if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
+            chatAdapter.removeMessage(currentUserMessage);
+            currentUserMessage = null;
+        }
+        
+        // Автоматически перезапускаем прослушивание только если не было явного нажатия на кнопку остановки
+        // и нет активного HTTP запроса или синтеза речи
+        if (!isExplicitlyStopped) {
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!isSpeaking) { // Не запускаем прослушивание, если сейчас говорит TTS
+                // Не запускаем прослушивание, если выполняется HTTP запрос или сейчас говорит TTS
+                if (!isSpeaking && !isHttpRequestInProgress) {
                 startListening();
+                } else {
+                    Log.d(TAG, "Skipping microphone restart: speaking=" + isSpeaking + 
+                               ", httpRequestInProgress=" + isHttpRequestInProgress);
             }
         }, 300);
+        } else {
+            Log.d(TAG, "Microphone explicitly stopped by user, not restarting automatically");
+        }
     }
 
     private void speakText(String text) {
@@ -649,182 +742,252 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     }
 
     private void sendMessageToAPI(String message) {
-        // Обновляем apiKey перед отправкой, чтобы учесть возможное изменение настроек
-        apiKey = getApiKey();
-        
-        if (apiKey == null) {
-            showError("API ключ не установлен");
-            showApiKeyDialog();
-            return;
-        }
-        
-        // Обратите внимание, что мы уже имеем сообщение пользователя в интерфейсе
-        // и не добавляем его повторно
-        
-        chatAdapter.setLoading(true);
-        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
-        
-        // Добавляем сообщение в историю, если текущее сообщение не задано,
-        // создаем новое (это может произойти при прямом вызове sendMessageToAPI)
-        ChatMessage userMessage;
-        if (currentUserMessage == null) {
-            userMessage = new ChatMessage(message, true);
-            messagesList.add(userMessage);
-        } else {
-            // Используем существующее сообщение
-            userMessage = currentUserMessage;
-            messagesList.add(userMessage);
-            // Сбрасываем ссылку на текущее сообщение, так как мы уже отправили его
-            currentUserMessage = null;
-        }
-        
-        // Если запрос похож на команду, проверяем через CommandProcessor
-        if (commandProcessor.processCommand(message)) {
-            chatAdapter.setLoading(false);
-            return;
-        }
-
-        Map<String, Object> body = new HashMap<>();
-        body.put("model", MODEL_ID);
-        
-        ArrayList<Map<String, Object>> messages = new ArrayList<>();
-        
-        // Добавляем системный промпт
-        SystemPrompt activePrompt = promptManager.getActivePrompt();
-        if (activePrompt != null) {
-            Map<String, Object> systemMessage = new HashMap<>();
-            systemMessage.put("role", "system");
-            systemMessage.put("content", activePrompt.getText());
-            messages.add(systemMessage);
-        }
-        
-        // Add previous messages for context (up to last 10 messages)
-        int historySize = messagesList.size();
-        int startIdx = Math.max(0, historySize - 10);
-        for (int i = startIdx; i < historySize - 1; i++) {
-            ChatMessage historyMessage = messagesList.get(i);
-            Map<String, Object> historyMessageMap = new HashMap<>();
-            historyMessageMap.put("role", historyMessage.isUserMessage() ? "user" : "assistant");
-            historyMessageMap.put("content", historyMessage.getText());
-            messages.add(historyMessageMap);
-        }
-        
-        // Добавляем сообщение пользователя с контекстной информацией
-        Map<String, Object> messageMap = new HashMap<>();
-        messageMap.put("role", "user");
-        
-        // Получаем контекстную информацию
-        String time = contextInfoProvider.getFormattedTime();
-        String location = contextInfoProvider.getFormattedLocation();
-        String userName = contextInfoProvider.getUserName();
-        
-        // Форматируем сообщение с добавлением контекстной информации после запроса
-        StringBuilder enhancedMessage = new StringBuilder(message);
-        enhancedMessage.append("\n\nКонтекстная информация:");
-        enhancedMessage.append("\nВремя: ").append(time);
-        enhancedMessage.append("\nМестоположение: ").append(location);
-        if (!userName.isEmpty()) {
-            enhancedMessage.append("\nИмя пользователя: ").append(userName);
-        }
-        
-        messageMap.put("content", enhancedMessage.toString());
-        messages.add(messageMap);
-        
-        body.put("messages", messages);
-        body.put("max_tokens", 1000);
-        body.put("temperature", 0.7);
-        body.put("route", "fallback");
-        
-        // Добавляем API ключ
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Authorization", "Bearer " + apiKey);
-        headers.put("HTTP-Referer", "https://robo-assistant.app");
-        headers.put("Content-Type", "application/json");
-        
-        // Отправка запроса в отдельном потоке
-        new Thread(() -> {
-            try {
-                HttpURLConnection connection = (HttpURLConnection) new URL(API_URL).openConnection();
-                connection.setRequestMethod("POST");
-                
-                // Устанавливаем заголовки
-                for (Map.Entry<String, String> entry : headers.entrySet()) {
-                    connection.setRequestProperty(entry.getKey(), entry.getValue());
-                }
-                
-                connection.setDoOutput(true);
-                
-                // Преобразуем Map в JSON
-                String jsonBody = mapToJson(body);
-                Log.d(TAG, "Request JSON: " + jsonBody);
-                
-                // Отправляем тело запроса
-                try (OutputStream os = connection.getOutputStream()) {
-                    byte[] input = jsonBody.getBytes(StandardCharsets.UTF_8);
-                    os.write(input, 0, input.length);
-                }
-                
-                // Получаем ответ
-                int responseCode = connection.getResponseCode();
-                if (responseCode == HttpURLConnection.HTTP_OK) {
-                    // Читаем ответ
-                    StringBuilder response = new StringBuilder();
-                    try (BufferedReader br = new BufferedReader(
-                            new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8))) {
-                        String responseLine;
-                        while ((responseLine = br.readLine()) != null) {
-                            response.append(responseLine.trim());
-                        }
-                    }
-                    
-                    Log.d(TAG, "Response: " + response.toString());
-                    
-                    // Парсим JSON ответ
-                    String messageContent = parseResponse(response.toString());
-                    
-                    // Добавляем сообщение от бота в UI
-                    runOnUiThread(() -> {
-                        chatAdapter.setLoading(false);
-                        ChatMessage botMessage = new ChatMessage(messageContent, false);
-                        chatAdapter.addMessage(botMessage);
-                        // Add to message history
-                        messagesList.add(botMessage);
-                        speakText(messageContent);
-                    });
-                    
-                } else {
-                    // Читаем тело ошибки
-                    StringBuilder errorResponse = new StringBuilder();
-                    try (BufferedReader br = new BufferedReader(
-                            new InputStreamReader(connection.getErrorStream(), StandardCharsets.UTF_8))) {
-                        String responseLine;
-                        while ((responseLine = br.readLine()) != null) {
-                            errorResponse.append(responseLine.trim());
-                        }
-                    }
-                    
-                    Log.e(TAG, "Error response (" + responseCode + "): " + errorResponse.toString());
-                    
-                    // Обработка ошибки
-                    runOnUiThread(() -> {
-                        chatAdapter.setLoading(false);
-                        ChatMessage errorMessage = new ChatMessage(
-                                "Произошла ошибка при отправке запроса (код " + responseCode + "): " + errorResponse.toString(), false);
-                        chatAdapter.addMessage(errorMessage);
-                    });
-                }
-                
-            } catch (Exception e) {
-                e.printStackTrace();
-                Log.e(TAG, "Exception: " + e.getMessage());
-                runOnUiThread(() -> {
-                    chatAdapter.setLoading(false);
-                    ChatMessage errorMessage = new ChatMessage(
-                            "Ошибка: " + e.getMessage(), false);
-                    chatAdapter.addMessage(errorMessage);
-                });
+        try {
+            // Если сообщение пустое, не отправляем запрос
+            if (message == null || message.trim().isEmpty()) {
+                Log.e(TAG, "Попытка отправить пустое сообщение API, отмена");
+                isHttpRequestInProgress = false;
+                return;
             }
-        }).start();
+            
+            // Обновляем apiKey перед отправкой, чтобы учесть возможное изменение настроек
+            apiKey = getApiKey();
+            
+            if (apiKey == null) {
+                showError("API ключ не установлен");
+                showApiKeyDialog();
+                isHttpRequestInProgress = false;
+                return;
+            }
+            
+            // Устанавливаем флаг, что HTTP запрос в процессе
+            isHttpRequestInProgress = true;
+            
+            // Обратите внимание, что мы уже имеем сообщение пользователя в интерфейсе
+            // и не добавляем его повторно
+            
+            runOnUiThread(() -> {
+                try {
+                    chatAdapter.setLoading(true);
+                    recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при обновлении UI в начале sendMessageToAPI", e);
+                }
+            });
+            
+            // Добавляем сообщение в историю, если текущее сообщение не задано,
+            // создаем новое (это может произойти при прямом вызове sendMessageToAPI)
+            ChatMessage userMessage;
+            if (currentUserMessage == null) {
+                userMessage = new ChatMessage(message, true);
+                messagesList.add(userMessage);
+            } else {
+                // Используем существующее сообщение
+                userMessage = currentUserMessage;
+                messagesList.add(userMessage);
+                // Сбрасываем ссылку на текущее сообщение, так как мы уже отправили его
+                currentUserMessage = null;
+            }
+            
+            // Если запрос похож на команду, проверяем через CommandProcessor
+            if (commandProcessor != null && commandProcessor.isCommand(message)) {
+                String response = commandProcessor.processCommand(message);
+                if (response != null) {
+                    runOnUiThread(() -> {
+                        try {
+                            chatAdapter.setLoading(false);
+                            ChatMessage botMessage = new ChatMessage(response, false);
+                            chatAdapter.addMessage(botMessage);
+                            messagesList.add(botMessage);
+                            
+                            // Запускаем анимацию печатания для сообщения бота
+                            typingAnimator.startTypingAnimation(botMessage, response);
+                            
+                            // Озвучиваем только после завершения анимации
+                            typingAnimator.setCompletionListener(completedMessage -> {
+                                speakText(response);
+                            });
+                        } catch (Exception e) {
+                            Log.e(TAG, "Ошибка при обработке команды", e);
+                        }
+                    });
+                    
+                    // Сбрасываем флаг HTTP запроса
+                    isHttpRequestInProgress = false;
+                    return;
+                }
+            }
+            
+            // Создаем системный промпт
+            SystemPrompt systemPrompt = promptManager.createSystemPrompt(contextInfoProvider);
+            
+            // Создаем заголовки для запроса
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Content-Type", "application/json");
+            headers.put("Authorization", "Bearer " + apiKey);
+            headers.put("HTTP-Referer", "https://github.com/finett/android-assistant");
+            headers.put("X-Title", "Android Assistant");
+            
+            // Создаем тело запроса
+            Map<String, Object> body = new HashMap<>();
+            body.put("model", MODEL_ID);
+            
+            // Создаем сообщения для API
+            List<Map<String, String>> messages = new ArrayList<>();
+            
+            // Добавляем системный промпт
+            Map<String, String> systemMessage = new HashMap<>();
+            systemMessage.put("role", "system");
+            systemMessage.put("content", systemPrompt.getContent());
+            messages.add(systemMessage);
+            
+            // Добавляем историю сообщений (максимум 10 последних сообщений)
+            int historySize = Math.min(messagesList.size(), 10);
+            for (int i = messagesList.size() - historySize; i < messagesList.size(); i++) {
+                ChatMessage historyMessage = messagesList.get(i);
+                Map<String, String> chatMessage = new HashMap<>();
+                chatMessage.put("role", historyMessage.isUser() ? "user" : "assistant");
+                chatMessage.put("content", historyMessage.getText());
+                messages.add(chatMessage);
+            }
+            
+            body.put("messages", messages);
+            
+            // Используем обычный запрос вместо стриминга
+            body.put("stream", false);
+
+            // Используем API для запроса без стриминга
+            Call<Map<String, Object>> call = openRouterApi.getChatCompletion(
+                    "Bearer " + apiKey,
+                    "https://github.com/finett/android-assistant",
+                    "Android Assistant",
+                    body
+            );
+            
+            call.enqueue(new Callback<Map<String, Object>>() {
+                @Override
+                public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
+                    try {
+                        if (!response.isSuccessful()) {
+                            runOnUiThread(() -> {
+                                try {
+                                    chatAdapter.setLoading(false);
+                                    String errorMessage = "Ошибка API: " + response.code();
+                                    try {
+                                        if (response.errorBody() != null) {
+                                            errorMessage += " - " + response.errorBody().string();
+                                        }
+                                    } catch (Exception e) {
+                                        Log.e(TAG, "Ошибка при чтении тела ошибки", e);
+                                    }
+                                    showError(errorMessage);
+                                } catch (Exception e) {
+                                    Log.e(TAG, "Ошибка при обработке неудачного ответа", e);
+                                } finally {
+                                    isHttpRequestInProgress = false;
+                                }
+                            });
+                            return;
+                        }
+                        
+                        // Обрабатываем ответ
+                        Map<String, Object> responseBody = response.body();
+                        if (responseBody != null && responseBody.containsKey("choices")) {
+                            ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
+                            if (choices != null && !choices.isEmpty()) {
+                                Map<String, Object> choice = choices.get(0);
+                                if (choice != null && choice.containsKey("message")) {
+                                    Map<String, Object> message = (Map<String, Object>) choice.get("message");
+                                    if (message != null && message.containsKey("content")) {
+                                        String content = (String) message.get("content");
+                                        if (content != null) {
+                                            final String finalContent = content;
+                                            runOnUiThread(() -> {
+                                                try {
+                                                    chatAdapter.setLoading(false);
+                                                    
+                                                    // Создаем сообщение бота
+                                                    ChatMessage assistantMessage = new ChatMessage("", false);
+                                                    chatAdapter.addMessage(assistantMessage);
+                                                    messagesList.add(assistantMessage);
+                                                    
+                                                    // Запускаем анимацию печатания для сообщения бота
+                                                    typingAnimator.startTypingAnimation(assistantMessage, finalContent);
+                                                    
+                                                    // Озвучиваем текст и генерируем подсказки только после завершения анимации
+                                                    typingAnimator.setCompletionListener(completedMessage -> {
+                                                        // Озвучиваем полный ответ
+                                                        speakText(finalContent);
+                                                        
+                                                        // Генерируем подсказки на основе ответа бота
+                                                        generateSuggestions(finalContent);
+                                                    });
+                                                } catch (Exception e) {
+                                                    Log.e(TAG, "Ошибка при обновлении UI с ответом", e);
+                                                } finally {
+                                                    isHttpRequestInProgress = false;
+                                                }
+                                            });
+                                            return;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // Если не удалось извлечь ответ
+                        runOnUiThread(() -> {
+                            try {
+                                chatAdapter.setLoading(false);
+                                showError("Не удалось получить ответ от модели");
+                            } catch (Exception e) {
+                                Log.e(TAG, "Ошибка при обработке пустого ответа", e);
+                            } finally {
+                                isHttpRequestInProgress = false;
+                            }
+                        });
+                    } catch (Exception e) {
+                        Log.e(TAG, "Критическая ошибка при обработке ответа: " + e.getMessage(), e);
+                        runOnUiThread(() -> {
+                            try {
+                                chatAdapter.setLoading(false);
+                                showError("Критическая ошибка: " + e.getMessage());
+                            } catch (Exception ex) {
+                                Log.e(TAG, "Ошибка при обработке исключения", ex);
+                            } finally {
+                                isHttpRequestInProgress = false;
+                            }
+                        });
+                    }
+                }
+                
+                @Override
+                public void onFailure(Call<Map<String, Object>> call, Throwable t) {
+                    Log.e(TAG, "Ошибка сети: " + t.getMessage(), t);
+                    runOnUiThread(() -> {
+                        try {
+                            chatAdapter.setLoading(false);
+                            showError("Ошибка сети: " + t.getMessage());
+                        } catch (Exception e) {
+                            Log.e(TAG, "Ошибка при обработке сетевой ошибки", e);
+                        } finally {
+                            isHttpRequestInProgress = false;
+                        }
+                    });
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Критическая ошибка в sendMessageToAPI: " + e.getMessage(), e);
+            runOnUiThread(() -> {
+                try {
+                    chatAdapter.setLoading(false);
+                    showError("Ошибка при отправке сообщения: " + e.getMessage());
+                } catch (Exception ex) {
+                    Log.e(TAG, "Ошибка при обработке исключения", ex);
+                }
+            });
+            isHttpRequestInProgress = false;
+        }
     }
 
     private void showError(String message) {
@@ -850,11 +1013,8 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     public void onBeginningOfSpeech() {
         Log.d("VoiceChatActivity", "Beginning of speech detected");
         
-        // Убедимся, что пустое сообщение добавлено, когда пользователь начал говорить
-        if (currentUserMessage == null) {
-            currentUserMessage = new ChatMessage("", true);
-            chatAdapter.addMessage(currentUserMessage);
-        }
+        // Не создаем пустое сообщение при начале речи
+        // Сообщение будет создано при получении первых распознанных слов
     }
 
     @Override
@@ -918,6 +1078,14 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     public void onEndOfSpeech() {
         Log.d("VoiceChatActivity", "End of speech detected");
         
+        // Если пользователь явно выключил микрофон, не пытаемся его перезапускать
+        if (isExplicitlyStopped) {
+            Log.d(TAG, "Not continuing recognition after end of speech: microphone explicitly stopped by user");
+            isListening = false;
+            micButton.setImageResource(R.drawable.ic_mic);
+            return;
+        }
+        
         // Не останавливаем прослушивание, а просто обрабатываем событие конца речи
         // Результаты придут автоматически в onResults
         
@@ -954,97 +1122,204 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
 
     @Override
     public void onResults(Bundle results) {
-        List<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        
-        // Если результаты пустые или отсутствуют, но есть последний частичный результат, используем его
-        if ((matches == null || matches.isEmpty() || (matches.get(0) != null && matches.get(0).isEmpty())) 
-                && !lastPartialResult.isEmpty()) {
-            Log.d(TAG, "Using last partial result as final: '" + lastPartialResult + "'");
-            matches = new ArrayList<>();
-            matches.add(lastPartialResult);
-        } else if (matches != null && !matches.isEmpty()) {
-            Log.d(TAG, "Recognized final text: '" + matches.get(0) + "'");
-        } else {
-            Log.d(TAG, "No speech recognized or empty results");
-            
-            // Удаляем пустое сообщение, если ничего не распознано
-            if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
-                chatAdapter.removeMessage(currentUserMessage);
-                currentUserMessage = null;
-            }
-            
-            // Автоматически перезапускаем прослушивание
-            restartListeningAfterResults();
-            return;
-        }
-        
-        // Очищаем последний частичный результат
-        String text = matches.get(0);
-        lastPartialResult = "";
-        
-        // Обновляем текст текущего сообщения пользователя с финальным результатом
-        updateTranscriptionText(text);
-        
-        // Логируем полученный текст
-        Log.d(TAG, "Processing recognized text: '" + text + "'");
-        
-        // Проверяем команду на открытие приложения
-        String normalizedText = text.toLowerCase();
-        if (normalizedText.startsWith("открой") || 
-            normalizedText.startsWith("запусти") || 
-            normalizedText.startsWith("открыть") || 
-            normalizedText.startsWith("запустить")) {
-            
-            // Обрабатываем как команду для запуска приложения
-            if (commandProcessor.processCommand(text)) {
-                // Сбрасываем текущее сообщение пользователя
-                currentUserMessage = null;
-                // Автоматически перезапускаем прослушивание
-                restartListeningAfterResults();
+        try {
+            if (results == null) {
+                Log.e(TAG, "Получен null bundle в onResults");
+                if (!isExplicitlyStopped) {
+                    restartListeningAfterResults();
+                }
                 return;
             }
+            
+            List<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            
+            // Если результаты пустые или отсутствуют, но есть последний частичный результат, используем его
+            if ((matches == null || matches.isEmpty() || (matches.get(0) != null && matches.get(0).isEmpty())) 
+                    && !lastPartialResult.isEmpty()) {
+                Log.d(TAG, "Using last partial result as final: '" + lastPartialResult + "'");
+                matches = new ArrayList<>();
+                matches.add(lastPartialResult);
+            } else if (matches != null && !matches.isEmpty()) {
+                Log.d(TAG, "Recognized final text: '" + matches.get(0) + "'");
+            } else {
+                Log.d(TAG, "No speech recognized or empty results");
+                
+                // Автоматически перезапускаем прослушивание только если пользователь не выключил микрофон явно
+                if (!isExplicitlyStopped) {
+                    restartListeningAfterResults();
+                } else {
+                    Log.d(TAG, "Not restarting after empty results: microphone explicitly stopped by user");
+                }
+                return;
+            }
+            
+            // Очищаем последний частичный результат
+            String text = "";
+            if (matches != null && !matches.isEmpty() && matches.get(0) != null) {
+                text = matches.get(0);
+            }
+            lastPartialResult = "";
+            
+            // Если текст пустой, не обрабатываем его
+            if (text == null || text.isEmpty()) {
+                Log.d(TAG, "Пустой результат распознавания речи");
+                // Автоматически перезапускаем прослушивание только если пользователь не выключил микрофон явно
+                if (!isExplicitlyStopped) {
+                    restartListeningAfterResults();
+                }
+                return;
+            }
+            
+            // Получаем финальный текст для обработки
+            final String finalText = text;
+            
+            // Выполняем операции с UI в основном потоке
+            runOnUiThread(() -> {
+                try {
+                    // Если сообщение еще не создано, создаем его сейчас
+                    if (currentUserMessage == null) {
+                        currentUserMessage = new ChatMessage(finalText, true);
+                        chatAdapter.addMessage(currentUserMessage);
+                        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                    } else {
+                        // Обновляем текст текущего сообщения пользователя с финальным результатом
+                        updateTranscriptionText(finalText);
+                    }
+                    
+                    // Логируем полученный текст
+                    Log.d(TAG, "Processing recognized text: '" + finalText + "'");
+                    
+                    // Проверяем команду на открытие приложения
+                    String normalizedText = finalText.toLowerCase();
+                    if (normalizedText.startsWith("открой") || 
+                        normalizedText.startsWith("запусти") || 
+                        normalizedText.startsWith("открыть") || 
+                        normalizedText.startsWith("запустить")) {
+                        
+                        // Обрабатываем как команду для запуска приложения
+                        String response = commandProcessor.processCommand(finalText);
+                        if (response != null) {
+                            // Добавляем ответ в список сообщений
+                            ChatMessage botMessage = new ChatMessage(response, false);
+                            chatAdapter.addMessage(botMessage);
+                            recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                            
+                            // Озвучиваем ответ
+                            speakText(response);
+                            
+                            // Сбрасываем текущее сообщение пользователя
+                            currentUserMessage = null;
+                            
+                            // Автоматически перезапускаем прослушивание только если пользователь не выключил микрофон явно
+                            if (!isExplicitlyStopped) {
+                                restartListeningAfterResults();
+                            } else {
+                                Log.d(TAG, "Not restarting after command: microphone explicitly stopped by user");
+                            }
+                            return;
+                        }
+                    }
+                    
+                    // Обрабатываем сначала как команду
+                    String response = commandProcessor.processCommand(finalText);
+                    if (response != null) {
+                        // Добавляем ответ в список сообщений
+                        ChatMessage botMessage = new ChatMessage(response, false);
+                        chatAdapter.addMessage(botMessage);
+                        recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                        
+                        // Озвучиваем ответ
+                        speakText(response);
+                    } else {
+                        // Если это не команда, отправляем в API
+                        sendMessageToAPI(finalText);
+                    }
+                    
+                    // Сбрасываем текущее сообщение пользователя
+                    currentUserMessage = null;
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при обработке результатов распознавания речи: " + e.getMessage(), e);
+                    showError("Ошибка при обработке голоса: " + e.getMessage());
+                    currentUserMessage = null;
+                }
+                
+                // Автоматически перезапускаем прослушивание только если пользователь не выключил микрофон явно
+                if (!isExplicitlyStopped) {
+                    restartListeningAfterResults();
+                } else {
+                    Log.d(TAG, "Not restarting after processing: microphone explicitly stopped by user");
+                }
+            });
+        } catch (Exception e) {
+            Log.e(TAG, "Критическая ошибка в onResults: " + e.getMessage(), e);
+            currentUserMessage = null;
+            
+            // Автоматически перезапускаем прослушивание только если пользователь не выключил микрофон явно
+            if (!isExplicitlyStopped) {
+                restartListeningAfterResults();
+            }
         }
-        
-        // Обрабатываем сначала как команду
-        if (!commandProcessor.processCommand(text)) {
-            // Если это не команда, отправляем в API
-            sendMessageToAPI(text);
-        }
-        
-        // Сбрасываем текущее сообщение пользователя
-        currentUserMessage = null;
-        
-        // Автоматически перезапускаем прослушивание
-        restartListeningAfterResults();
     }
     
     /**
      * Перезапускает прослушивание после обработки результатов
      */
     private void restartListeningAfterResults() {
+        // Не перезапускаем если пользователь явно нажал на кнопку остановки
+        if (isExplicitlyStopped) {
+            Log.d(TAG, "Not restarting after results: microphone explicitly stopped by user");
+            return;
+        }
+        
         // Задержка перед перезапуском прослушивания
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            // Проверяем, не говорим ли мы сейчас через TTS
-            if (!isSpeaking && !isListening) {
+            // Проверяем, не говорим ли мы сейчас через TTS и не выполняется ли HTTP запрос
+            if (!isSpeaking && !isListening && !isHttpRequestInProgress) {
                 startListening();
+            } else {
+                Log.d(TAG, "Skipping microphone restart after results: speaking=" + isSpeaking + 
+                         ", httpRequestInProgress=" + isHttpRequestInProgress);
             }
         }, 500);
     }
 
     @Override
     public void onPartialResults(Bundle partialResults) {
-        List<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        if (matches != null && !matches.isEmpty()) {
-            String text = matches.get(0);
-            Log.d(TAG, "Partial result: '" + text + "'");
-            
-            // Сохраняем последний частичный результат
-            if (text != null && !text.isEmpty()) {
-                lastPartialResult = text;
+        try {
+            if (partialResults == null) {
+                Log.e(TAG, "Получен null bundle в onPartialResults");
+                return;
             }
             
-            // Обновляем текст текущего сообщения пользователя
-            updateTranscriptionText(text);
+            List<String> matches = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (matches != null && !matches.isEmpty() && matches.get(0) != null) {
+                String text = matches.get(0);
+                Log.d(TAG, "Partial result: '" + text + "'");
+                
+                // Сохраняем последний частичный результат
+                if (text != null && !text.isEmpty()) {
+                    lastPartialResult = text;
+                    
+                    // Выполняем операции с UI в основном потоке
+                    runOnUiThread(() -> {
+                        try {
+                            // Создаем сообщение пользователя, если его еще нет и есть текст для отображения
+                            if (currentUserMessage == null) {
+                                currentUserMessage = new ChatMessage(text, true);
+                                chatAdapter.addMessage(currentUserMessage);
+                                recyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                            } else {
+                                // Обновляем текст текущего сообщения пользователя
+                                updateTranscriptionText(text);
+                            }
+                        } catch (Exception e) {
+                            Log.e(TAG, "Ошибка при обновлении UI в onPartialResults: " + e.getMessage(), e);
+                        }
+                    });
+                }
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Критическая ошибка в onPartialResults: " + e.getMessage(), e);
         }
     }
 
@@ -1055,15 +1330,63 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     protected void onDestroy() {
         Log.d(TAG, "onDestroy called");
         
-        // Release resources
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
+        // Release text-to-speech resources
+        try {
+            if (textToSpeech != null) {
+                textToSpeech.stop();
+                textToSpeech.shutdown();
+                textToSpeech = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при освобождении ресурсов text-to-speech", e);
         }
         
-        if (speechRecognizer != null) {
-            speechRecognizer.destroy();
-            speechRecognizer = null;
+        // Release speech recognizer resources
+        try {
+            if (speechRecognizer != null) {
+                try {
+                    speechRecognizer.cancel();
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при отмене распознавания", e);
+                }
+                
+                try {
+                    speechRecognizer.destroy();
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при уничтожении распознавателя", e);
+                }
+                
+                speechRecognizer = null;
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Критическая ошибка при освобождении ресурсов распознавателя", e);
+        }
+        
+        // Освобождаем другие ресурсы
+        try {
+            // Отменяем анимации
+            if (pulsateAnimator != null && pulsateAnimator.isRunning()) {
+                pulsateAnimator.cancel();
+            }
+            
+            if (fadeInAnimator != null && fadeInAnimator.isRunning()) {
+                fadeInAnimator.cancel();
+            }
+            
+            if (fadeOutAnimator != null && fadeOutAnimator.isRunning()) {
+                fadeOutAnimator.cancel();
+            }
+            
+            if (borderPulsateAnimator != null && borderPulsateAnimator.isRunning()) {
+                borderPulsateAnimator.cancel();
+            }
+        } catch (Exception e) {
+            Log.e(TAG, "Ошибка при отмене анимаций", e);
+        }
+        
+        // Останавливаем анимацию печатания при уничтожении активности
+        if (typingAnimator != null && typingAnimator.isAnimating()) {
+            typingAnimator.stopTypingAnimation();
         }
         
         super.onDestroy();
@@ -1072,6 +1395,16 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     @Override
     protected void onPause() {
         super.onPause();
+        
+        // Останавливаем анимацию печатания при уходе с экрана
+        if (typingAnimator != null && typingAnimator.isAnimating()) {
+            typingAnimator.stopTypingAnimation();
+        }
+        
+        // Set explicit stop flag when pausing the activity
+        isExplicitlyStopped = true;
+        // Сохраняем состояние флага
+        saveExplicitlyStoppedState(true);
         
         // Stop animations when activity is paused
         if (pulsateAnimator.isRunning()) {
@@ -1108,9 +1441,23 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     protected void onResume() {
         super.onResume();
         
+        // Загружаем сохраненное состояние флага явной остановки микрофона
+        isExplicitlyStopped = loadExplicitlyStoppedState();
+        
         // Обновляем контекстную информацию при возвращении к активности
         if (contextInfoProvider != null) {
             contextInfoProvider.updateLocationInfo();
+        }
+        
+        // При возвращении в активность проверяем настройку автоматического запуска микрофона
+        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+        boolean autoListen = prefs.getBoolean("voice_chat_auto_listen", false);
+        
+        if (autoListen && !isExplicitlyStopped) {
+            // Запускаем распознавание, если нет других препятствий
+            if (!isSpeaking && !isHttpRequestInProgress) {
+                startListening();
+            }
         }
     }
 
@@ -1402,11 +1749,8 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
             lastVoiceTime = System.currentTimeMillis();
             micButton.setImageResource(R.drawable.ic_stop);
             
-            // Добавляем пустое сообщение пользователя в чат в начале распознавания
-            if (currentUserMessage == null) {
-                currentUserMessage = new ChatMessage("", true);
-                chatAdapter.addMessage(currentUserMessage);
-            }
+            // Удаляем создание пустого сообщения при начале прослушивания
+            // Теперь сообщение будет создаваться только при получении первых слов
             
             // Запускаем таймер для проверки тишины
             micButton.postDelayed(speechTimeoutRunnable, SPEECH_TIMEOUT_MILLIS);
@@ -1524,7 +1868,7 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
         runOnUiThread(() -> {
             micButton.removeCallbacks(speechTimeoutRunnable);
             
-            // Удаляем пустое сообщение, если произошла ошибка
+            // Удаляем пустое сообщение, если оно было создано, но осталось пустым
             if (currentUserMessage != null && (currentUserMessage.getText() == null || currentUserMessage.getText().isEmpty())) {
                 chatAdapter.removeMessage(currentUserMessage);
                 currentUserMessage = null;
@@ -1540,13 +1884,15 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                 Log.d(TAG, "Handling ERROR_RECOGNIZER_BUSY with full reset");
                 fullResetAndRestartRecognition();
             } else if (error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) {
-                // При таймауте или отсутствии совпадений просто перезапускаем
+                // При таймауте или отсутствии совпадений просто перезапускаем, если не было явной остановки
                 Log.d(TAG, "Restarting recognition after no match or timeout");
+                if (!isExplicitlyStopped) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     if (!isSpeaking) {
                         startListening();
                     }
                 }, 300);
+                }
             } else {
                 // Для других ошибок делаем более длительную паузу и полный сброс
                 Log.d(TAG, "Handling other error with delay and full reset");
@@ -1554,10 +1900,229 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
                     error == SpeechRecognizer.ERROR_NETWORK) {
                     showError(errorMessage);
                 }
+                if (!isExplicitlyStopped) {
                 new Handler(Looper.getMainLooper()).postDelayed(() -> {
                     fullResetAndRestartRecognition();
                 }, 1000);
+                }
             }
         });
+    }
+
+    /**
+     * Сохраняет состояние флага явной остановки микрофона
+     * @param stopped true, если микрофон был явно остановлен пользователем
+     */
+    private void saveExplicitlyStoppedState(boolean stopped) {
+        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+        prefs.edit().putBoolean(KEY_EXPLICITLY_STOPPED, stopped).apply();
+    }
+    
+    /**
+     * Загружает состояние флага явной остановки микрофона
+     * @return true, если микрофон был явно остановлен пользователем
+     */
+    private boolean loadExplicitlyStoppedState() {
+        SharedPreferences prefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
+        return prefs.getBoolean(KEY_EXPLICITLY_STOPPED, false);
+    }
+
+    /**
+     * Настраивает UI для подсказок и инициализирует генератор подсказок
+     */
+    private void setupSuggestions() {
+        // Находим view для подсказок
+        suggestionsScrollView = findViewById(R.id.suggestionsScrollView);
+        suggestionsChipGroup = findViewById(R.id.suggestionsChipGroup);
+        
+        // Инициализация генератора подсказок
+        suggestionGenerator = new SuggestionGenerator(this, suggestions -> {
+            runOnUiThread(() -> updateSuggestionsUI(suggestions));
+        });
+    }
+    
+    /**
+     * Обновляет UI с новыми подсказками
+     */
+    private void updateSuggestionsUI(List<String> suggestions) {
+        if (suggestionsChipGroup == null) return;
+        
+        // Очищаем текущие подсказки
+        suggestionsChipGroup.removeAllViews();
+        
+        if (!suggestions.isEmpty()) {
+            // Отображаем контейнер с подсказками
+            suggestionsScrollView.setVisibility(View.VISIBLE);
+            
+            // Создаем чипы для каждой подсказки
+            for (String suggestion : suggestions) {
+                Chip chip = new Chip(this);
+                chip.setText(suggestion);
+                chip.setClickable(true);
+                chip.setCheckable(false);
+                
+                // Обработчик нажатия на подсказку
+                chip.setOnClickListener(v -> {
+                    // Отправляем выбранную подсказку как сообщение пользователя
+                    ChatMessage userMessage = new ChatMessage(suggestion, true);
+                    chatAdapter.addMessage(userMessage);
+                    messagesList.add(userMessage);
+                    suggestionsScrollView.setVisibility(View.GONE);
+                    sendMessageToAPI(suggestion);
+                });
+                
+                suggestionsChipGroup.addView(chip);
+            }
+        } else {
+            // Скрываем контейнер, если подсказок нет
+            suggestionsScrollView.setVisibility(View.GONE);
+        }
+    }
+    
+    /**
+     * Генерирует подсказки на основе контекста чата
+     */
+    private void generateSuggestions(String lastBotMessage) {
+        // Показываем индикатор загрузки
+        runOnUiThread(() -> {
+            if (suggestionsChipGroup != null) {
+                suggestionsChipGroup.removeAllViews();
+                
+                // Добавляем "загрузочный" чип
+                Chip loadingChip = new Chip(this);
+                loadingChip.setText("Генерирую подсказки...");
+                loadingChip.setClickable(false);
+                loadingChip.setCheckable(false);
+                suggestionsChipGroup.addView(loadingChip);
+                
+                // Показываем контейнер с подсказками
+                suggestionsScrollView.setVisibility(View.VISIBLE);
+            }
+        });
+        
+        // Запускаем генерацию подсказок
+        suggestionGenerator.generateSuggestions(lastBotMessage);
+    }
+
+    @Override
+    protected void onSaveInstanceState(@NonNull Bundle outState) {
+        super.onSaveInstanceState(outState);
+        // Сохраняем список сообщений при изменении конфигурации
+        if (messagesList != null && !messagesList.isEmpty()) {
+            outState.putParcelableArrayList("messages", new ArrayList<>(messagesList));
+        }
+    }
+    
+    @Override
+    protected void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
+        super.onRestoreInstanceState(savedInstanceState);
+        // Восстановление сообщений происходит в onCreate
+    }
+
+    @Override
+    public void onConfigurationChanged(@NonNull android.content.res.Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+        
+        // Обновляем UI при изменении темы
+        if ((newConfig.uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK) != 
+            (getResources().getConfiguration().uiMode & android.content.res.Configuration.UI_MODE_NIGHT_MASK)) {
+            
+            Log.d(TAG, "Тема изменена, обновляем UI");
+            
+            // Обновляем адаптер, чтобы применить новые цвета
+            if (chatAdapter != null) {
+                chatAdapter.refreshColors();
+            }
+            
+            // Обновляем цвета кнопок и других элементов UI
+            updateUIColors();
+        }
+    }
+    
+    private void updateUIColors() {
+        // Обновляем цвета элементов интерфейса в соответствии с текущей темой
+        boolean isNightMode = (getResources().getConfiguration().uiMode 
+            & android.content.res.Configuration.UI_MODE_NIGHT_MASK) 
+            == android.content.res.Configuration.UI_MODE_NIGHT_YES;
+        
+        Log.d(TAG, "Обновление цветов UI, ночной режим: " + isNightMode);
+        
+        // Определяем цвета в зависимости от темы
+        int backgroundColor = ContextCompat.getColor(this, 
+            isNightMode ? R.color.background : R.color.background_light);
+        int primaryColor = ContextCompat.getColor(this,
+            isNightMode ? R.color.primary : R.color.primary_light);
+        int accentColor = ContextCompat.getColor(this,
+            isNightMode ? R.color.accent : R.color.accent_light);
+            
+        // Обновляем статус-бар и навигационную панель
+        Window window = getWindow();
+        if (window != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            window.setStatusBarColor(primaryColor);
+            window.setNavigationBarColor(backgroundColor);
+            
+            // Устанавливаем светлые/темные иконки в зависимости от темы
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                View decorView = window.getDecorView();
+                int flags = decorView.getSystemUiVisibility();
+                if (isNightMode) {
+                    // Темная тема - светлые иконки
+                    flags &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                } else {
+                    // Светлая тема - темные иконки
+                    flags |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                }
+                decorView.setSystemUiVisibility(flags);
+            }
+        }
+        
+        // Обновляем цвета кнопок
+        if (micButton != null) {
+            micButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(primaryColor));
+        }
+        
+        if (cameraButton != null) {
+            cameraButton.setBackgroundTintList(android.content.res.ColorStateList.valueOf(accentColor));
+        }
+        
+        // Обновляем фон основного контейнера
+        View rootView = findViewById(android.R.id.content);
+        if (rootView != null) {
+            rootView.setBackgroundColor(backgroundColor);
+            
+            // Находим и обновляем все основные контейнеры
+            androidx.constraintlayout.widget.ConstraintLayout mainContainer = 
+                findViewById(R.id.main_container);
+            if (mainContainer != null) {
+                mainContainer.setBackgroundColor(backgroundColor);
+            }
+            
+            // Обновляем фон RecyclerView
+            if (recyclerView != null) {
+                recyclerView.setBackgroundColor(backgroundColor);
+            }
+            
+            // Обновляем фон контейнера кнопок
+            View buttonContainer = findViewById(R.id.button_container);
+            if (buttonContainer != null) {
+                buttonContainer.setBackgroundColor(backgroundColor);
+            }
+        }
+        
+        // Обновляем цвета тулбара
+        MaterialToolbar toolbar = findViewById(R.id.toolbar);
+        if (toolbar != null) {
+            toolbar.setBackgroundColor(primaryColor);
+        }
+        
+        // Обновляем цвета подсказок
+        HorizontalScrollView suggestionsScrollView = findViewById(R.id.suggestionsScrollView);
+        if (suggestionsScrollView != null) {
+            suggestionsScrollView.setBackgroundColor(backgroundColor);
+        }
+        
+        // Принудительно перерисовываем весь интерфейс
+        View decorView = getWindow().getDecorView();
+        decorView.invalidate();
     }
 } 

@@ -1,6 +1,9 @@
 package io.finett.myapplication.adapter;
 
+import android.animation.AnimatorInflater;
+import android.animation.Animator;
 import android.content.Context;
+import android.content.res.Configuration;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -18,6 +21,9 @@ import io.finett.myapplication.model.ChatMessage;
 import android.view.accessibility.AccessibilityManager;
 import androidx.core.content.ContextCompat;
 import io.noties.markwon.Markwon;
+import android.os.Handler;
+import android.os.Looper;
+import android.util.Log;
 
 public class VoiceChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final List<ChatMessage> messages = new ArrayList<>();
@@ -28,6 +34,9 @@ public class VoiceChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     private boolean isLoading = false;
     private static final int VIEW_TYPE_MESSAGE = 0;
     private static final int VIEW_TYPE_LOADING = 1;
+    
+    private final Handler handler = new Handler(Looper.getMainLooper());
+    private static final String TAG = "VoiceChatAdapter";
 
     public VoiceChatAdapter(Context context) {
         this.context = context;
@@ -50,34 +59,93 @@ public class VoiceChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
     @Override
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         if (holder instanceof MessageViewHolder) {
-            ChatMessage message = messages.get(position);
             MessageViewHolder messageHolder = (MessageViewHolder) holder;
+            ChatMessage message = messages.get(position);
             
-            // Применяем Markdown форматирование для сообщений ассистента
-            if (message.isUserMessage()) {
-                messageHolder.messageText.setText(message.getText());
-            } else {
-                markwon.setMarkdown(messageHolder.messageText, message.getText());
+            // Устанавливаем текст сообщения
+            messageHolder.messageText.setText(message.getText());
+            
+            // Настраиваем положение сообщения (справа - пользователь, слева - ассистент)
+            LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) messageHolder.messageCard.getLayoutParams();
+            
+            try {
+                // Определяем, используется ли темная тема
+                boolean isNightMode = (context.getResources().getConfiguration().uiMode 
+                    & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+                
+                Log.d(TAG, "onBindViewHolder: isNightMode = " + isNightMode + " for position " + position);
+                
+                if (message.isUser()) {
+                    layoutParams.gravity = Gravity.END;
+                    
+                    if (isNightMode) {
+                        // Для темной темы
+                        messageHolder.messageCard.setCardBackgroundColor(
+                            ContextCompat.getColor(context, R.color.message_user_background));
+                        messageHolder.messageText.setTextColor(
+                            ContextCompat.getColor(context, R.color.message_user_text));
+                        Log.d(TAG, "Applied dark theme colors for user message");
+                    } else {
+                        // Для светлой темы
+                        messageHolder.messageCard.setCardBackgroundColor(
+                            ContextCompat.getColor(context, R.color.message_user_background_light));
+                        messageHolder.messageText.setTextColor(
+                            ContextCompat.getColor(context, R.color.message_user_text_light));
+                        Log.d(TAG, "Applied light theme colors for user message");
+                    }
+                } else {
+                    layoutParams.gravity = Gravity.START;
+                    
+                    if (isNightMode) {
+                        // Для темной темы
+                        messageHolder.messageCard.setCardBackgroundColor(
+                            ContextCompat.getColor(context, R.color.message_ai_background));
+                        messageHolder.messageText.setTextColor(
+                            ContextCompat.getColor(context, R.color.message_ai_text));
+                        Log.d(TAG, "Applied dark theme colors for assistant message");
+                    } else {
+                        // Для светлой темы
+                        messageHolder.messageCard.setCardBackgroundColor(
+                            ContextCompat.getColor(context, R.color.message_ai_background_light));
+                        messageHolder.messageText.setTextColor(
+                            ContextCompat.getColor(context, R.color.message_ai_text_light));
+                        Log.d(TAG, "Applied light theme colors for assistant message");
+                    }
+                }
+            } catch (Exception e) {
+                // Логируем ошибку и используем запасные цвета
+                Log.e(TAG, "Error setting message colors: " + e.getMessage());
+                
+                // Проверяем, используется ли темная тема
+                boolean isNightMode = (context.getResources().getConfiguration().uiMode 
+                    & Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES;
+                
+                if (isNightMode) {
+                    // Запасные цвета для темной темы
+                    if (message.isUser()) {
+                        messageHolder.messageCard.setCardBackgroundColor(0xFF1976D2); // Яркий синий
+                        messageHolder.messageText.setTextColor(0xFFFFFFFF); // Белый
+                    } else {
+                        messageHolder.messageCard.setCardBackgroundColor(0xFF558B2F); // Яркий зеленый
+                        messageHolder.messageText.setTextColor(0xFFFFFFFF); // Белый
+                    }
+                } else {
+                    // Запасные цвета для светлой темы
+                    if (message.isUser()) {
+                        messageHolder.messageCard.setCardBackgroundColor(0xFFBBDEFB); // Светло-голубой
+                        messageHolder.messageText.setTextColor(0xFF212121); // Почти черный
+                    } else {
+                        messageHolder.messageCard.setCardBackgroundColor(0xFFC4F2F5); // Светло-бирюзовый
+                        messageHolder.messageText.setTextColor(0xFF212121); // Почти черный
+                    }
+                }
             }
             
-            // Настройка внешнего вида сообщения
-            if (message.isUserMessage()) {
-                messageHolder.messageCard.setCardBackgroundColor(ContextCompat.getColor(context, R.color.user_message_background));
-                LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) messageHolder.messageCard.getLayoutParams();
-                layoutParams.gravity = Gravity.END;
-                messageHolder.messageCard.setLayoutParams(layoutParams);
-            } else {
-                messageHolder.messageCard.setCardBackgroundColor(ContextCompat.getColor(context, R.color.assistant_message_background));
-                LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) messageHolder.messageCard.getLayoutParams();
-                layoutParams.gravity = Gravity.START;
-                messageHolder.messageCard.setLayoutParams(layoutParams);
-            }
+            messageHolder.messageCard.setLayoutParams(layoutParams);
             
-            // Доступность для screen readers
-            if (accessibilityManager != null && accessibilityManager.isEnabled()) {
-                messageHolder.messageText.setContentDescription(
-                    (message.isUserMessage() ? "Вы: " : "Ассистент: ") + message.getText());
-            }
+            // Всегда скрываем курсор, так как стриминг отключен
+            messageHolder.typingCursor.setVisibility(View.GONE);
+            
         } else if (holder instanceof LoadingViewHolder) {
             // No binding needed for loading placeholder
         }
@@ -136,14 +204,22 @@ public class VoiceChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHold
         }
     }
 
+    public void refreshColors() {
+        // Просто уведомляем адаптер о необходимости перерисовать все элементы
+        // с новыми цветами из темы
+        notifyDataSetChanged();
+    }
+
     static class MessageViewHolder extends RecyclerView.ViewHolder {
         final CardView messageCard;
         final TextView messageText;
+        final View typingCursor;
 
         MessageViewHolder(View itemView) {
             super(itemView);
             messageCard = itemView.findViewById(R.id.messageCard);
             messageText = itemView.findViewById(R.id.messageText);
+            typingCursor = itemView.findViewById(R.id.typingCursor);
         }
     }
     

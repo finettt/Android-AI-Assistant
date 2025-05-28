@@ -7,8 +7,10 @@
     tools:context=".VoiceChatActivity">
 
     <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/main_container"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:background="?android:attr/colorBackground">
 
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
@@ -16,10 +18,11 @@
             android:layout_height="?attr/actionBarSize"
             android:background="?attr/colorPrimary"
             android:elevation="4dp"
-            android:theme="@style/ThemeOverlay.MaterialComponents.Dark.ActionBar"
+            android:theme="?attr/actionBarTheme"
             app:layout_constraintTop_toTopOf="parent"
-            app:popupTheme="@style/ThemeOverlay.MaterialComponents.Light"
+            app:popupTheme="?attr/actionBarPopupTheme"
             app:navigationIcon="@drawable/ic_back"
+            app:titleTextColor="?attr/colorOnPrimary"
             app:title="Голосовой ассистент" />
 
         <androidx.recyclerview.widget.RecyclerView
@@ -28,7 +31,7 @@
             android:layout_height="0dp"
             android:clipToPadding="false"
             android:padding="8dp"
-            app:layout_constraintBottom_toTopOf="@id/button_container"
+            app:layout_constraintBottom_toTopOf="@id/suggestionsScrollView"
             app:layout_constraintTop_toBottomOf="@id/toolbar" />
 
         <!-- Overlay for speech transcription -->
@@ -46,14 +49,35 @@
             android:id="@+id/empty_state_text"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Нажмите на микрофон и скажите что-нибудь.\nНапример: 'Какая погода сегодня?'"
+            android:text=""
             android:textAlignment="center"
             android:padding="16dp"
             android:textSize="18sp"
-            android:visibility="visible"
+            android:textColor="?android:attr/textColorPrimary"
+            android:visibility="gone"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintTop_toBottomOf="@id/toolbar"
             app:layout_constraintVertical_bias="0.4" />
+
+        <!-- Контейнер с подсказками -->
+        <HorizontalScrollView
+            android:id="@+id/suggestionsScrollView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:scrollbars="none"
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp"
+            android:clipToPadding="false"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@+id/button_container">
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/suggestionsChipGroup"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                app:singleLine="true"
+                app:chipSpacing="8dp" />
+        </HorizontalScrollView>
 
         <LinearLayout
             android:id="@+id/button_container"
@@ -77,6 +101,8 @@
                 android:layout_marginEnd="24dp"
                 android:contentDescription="Вернуться назад"
                 android:src="@drawable/ic_back"
+                app:tint="@color/white"
+                app:backgroundTint="?attr/colorPrimary"
                 app:fabSize="normal" />
 
             <com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -86,6 +112,8 @@
                 android:layout_marginEnd="24dp"
                 android:contentDescription="@string/start_camera"
                 android:src="@drawable/ic_camera"
+                app:tint="@color/white"
+                app:backgroundTint="?attr/colorPrimary"
                 app:fabSize="normal" />
 
             <FrameLayout
@@ -101,6 +129,8 @@
                     android:layout_height="wrap_content"
                     android:contentDescription="@string/start_voice_input"
                     android:src="@drawable/ic_mic"
+                    app:tint="@color/white"
+                    app:backgroundTint="?attr/colorPrimary"
                     app:fabSize="normal"
                     app:maxImageSize="24dp"
                     app:borderWidth="0dp"
