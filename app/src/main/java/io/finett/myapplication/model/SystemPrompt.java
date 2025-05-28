@@ -67,4 +67,12 @@ public class SystemPrompt {
     public void setId(String id) {
         this.id = id;
     }
+
+    /**
+     * Возвращает содержимое системного промпта
+     * @return текст системного промпта
+     */
+    public String getContent() {
+        return getText();
+    }
 } 

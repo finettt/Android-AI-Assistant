@@ -36,8 +36,34 @@
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:padding="8dp"
-                app:layout_constraintBottom_toTopOf="@+id/inputLayout"
+                app:layout_constraintBottom_toTopOf="@+id/suggestionsScrollView"
                 app:layout_constraintTop_toTopOf="parent" />
+
+            <HorizontalScrollView
+                android:id="@+id/suggestionsScrollView"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:scrollbars="none"
+                android:paddingStart="8dp"
+                android:paddingEnd="8dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:layout_marginStart="8dp"
+                android:layout_marginEnd="8dp"
+                android:layout_marginBottom="8dp"
+                android:background="@drawable/suggestions_background"
+                android:elevation="2dp"
+                android:clipToPadding="false"
+                android:visibility="visible"
+                app:layout_constraintBottom_toTopOf="@+id/inputLayout">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/suggestionsChipGroup"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleLine="true"
+                    app:chipSpacing="8dp" />
+            </HorizontalScrollView>
 
             <LinearLayout
                 android:id="@+id/inputLayout"

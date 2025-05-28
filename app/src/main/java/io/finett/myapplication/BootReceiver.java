@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.os.Build;
+import androidx.preference.PreferenceManager;
 import android.util.Log;
 
 /**
@@ -25,14 +26,22 @@ public class BootReceiver extends BroadcastReceiver {
             
             Log.d(TAG, "System boot or app update detected");
             
-            // Всегда запускаем сервис голосовой активации при загрузке
+            // Проверяем, включена ли голосовая активация
+            SharedPreferences prefs = PreferenceManager.getDefaultSharedPreferences(context);
+            boolean voiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", false);
+            
+            if (voiceActivationEnabled) {
+                // Запускаем сервис голосовой активации только если он включен в настройках
             startVoiceActivationService(context);
+            } else {
+                Log.d(TAG, "Voice activation disabled, skipping service start");
+            }
             
             // Проверяем настройку автозапуска ассистента
-            SharedPreferences prefs = context.getSharedPreferences("ChatAppPrefs", Context.MODE_PRIVATE);
-            boolean autoStartAssistant = prefs.getBoolean("autostart_assistant", false);
+            SharedPreferences chatPrefs = context.getSharedPreferences("ChatAppPrefs", Context.MODE_PRIVATE);
+            boolean autoStartAssistant = chatPrefs.getBoolean("autostart_assistant", false);
             
-            if (autoStartAssistant) {
+            if (autoStartAssistant && voiceActivationEnabled) {
                 Log.d(TAG, "Auto-start assistant enabled, starting services...");
                 
                 // Запускаем сервис голосового взаимодействия
@@ -44,7 +53,7 @@ public class BootReceiver extends BroadcastReceiver {
                     Log.e(TAG, "Failed to start VoiceInteractionService: " + e.getMessage());
                 }
             } else {
-                Log.d(TAG, "Auto-start assistant disabled, skipping service launch");
+                Log.d(TAG, "Auto-start assistant disabled or voice activation disabled, skipping service launch");
             }
         }
     }
@@ -55,7 +64,7 @@ public class BootReceiver extends BroadcastReceiver {
      */
     private void startVoiceActivationService(Context context) {
         try {
-            // Запускаем сервис голосовой активации всегда при загрузке
+            // Запускаем сервис голосовой активации
             Log.d(TAG, "Starting voice activation service on boot");
             Intent serviceIntent = new Intent(context, VoiceActivationService.class);
             
@@ -66,11 +75,6 @@ public class BootReceiver extends BroadcastReceiver {
                 context.startService(serviceIntent);
                 Log.d(TAG, "VoiceActivationService started using startService");
             }
-            
-            // Устанавливаем настройку voice_activation_enabled в true
-            SharedPreferences prefs = context.getSharedPreferences("ChatAppPrefs", Context.MODE_PRIVATE);
-            prefs.edit().putBoolean("voice_activation_enabled", true).apply();
-            Log.d(TAG, "Voice activation enabled preference set to true");
         } catch (Exception e) {
             Log.e(TAG, "Failed to start VoiceActivationService: " + e.getMessage());
         }

@@ -28,6 +28,23 @@ public class CommunicationManager {
         this.activity = activity;
         this.context = activity;
         this.contactsManager = new ContactsManager(activity);
+        
+        // Проверяем разрешение на доступ к контактам
+        boolean hasContactsPermission = ContextCompat.checkSelfPermission(context, 
+                Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED;
+        
+        if (!hasContactsPermission) {
+            android.util.Log.d("CommunicationManager", "Нет разрешения на доступ к контактам при инициализации");
+            // Запрашиваем разрешение
+            ActivityCompat.requestPermissions(
+                activity,
+                new String[]{Manifest.permission.READ_CONTACTS},
+                103 // ContactsManager.PERMISSION_REQUEST_CONTACTS
+            );
+        } else {
+            android.util.Log.d("CommunicationManager", "Разрешение на доступ к контактам предоставлено при инициализации");
+        }
+        
         this.contactNlpProcessor = new ContactNlpProcessor(context, contactsManager);
     }
     
@@ -175,7 +192,7 @@ public class CommunicationManager {
         AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение звонка")
                 .setMessage("Вы действительно хотите позвонить " + 
-                        (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) + "?")
+                        (contact != null ? contact.name + " на номер " + phoneNumber : "на номер " + phoneNumber) + "?")
                 .setPositiveButton("Да", (d, which) -> {
                     try {
                         Intent intent = new Intent(Intent.ACTION_CALL);
@@ -201,7 +218,7 @@ public class CommunicationManager {
         AlertDialog dialog = new AlertDialog.Builder(activity)
                 .setTitle("Подтверждение отправки SMS")
                 .setMessage("Отправить сообщение " + 
-                        (contact != null ? contact.name + " (" + phoneNumber + ")" : "на номер " + phoneNumber) +
+                        (contact != null ? contact.name + " на номер " + phoneNumber : "на номер " + phoneNumber) +
                         "?\n\nТекст: " + message)
                 .setPositiveButton("Да", (d, which) -> {
                     try {

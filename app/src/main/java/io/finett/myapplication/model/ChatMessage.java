@@ -1,15 +1,19 @@
 package io.finett.myapplication.model;
 
 import android.net.Uri;
+import android.os.Parcel;
+import android.os.Parcelable;
+
 import java.util.Date;
 
-public class ChatMessage {
+public class ChatMessage implements Parcelable {
     private String text;
     private boolean isUserMessage;
     private long timestamp;
     private String attachmentUri;
     private AttachmentType attachmentType;
     private boolean isEdited;
+    private String displayText; // Для анимации печатания
 
     public enum AttachmentType {
         NONE,
@@ -23,6 +27,7 @@ public class ChatMessage {
         } else {
             this.text = text;
         }
+        this.displayText = this.text; // Изначально отображаемый текст равен оригинальному
         this.isUserMessage = isUserMessage;
         this.timestamp = new Date().getTime();
         this.attachmentType = AttachmentType.NONE;
@@ -35,8 +40,61 @@ public class ChatMessage {
         this.attachmentType = attachmentType;
     }
 
+    // Конструктор для Parcelable
+    protected ChatMessage(Parcel in) {
+        text = in.readString();
+        displayText = in.readString();
+        isUserMessage = in.readByte() != 0;
+        timestamp = in.readLong();
+        isEdited = in.readByte() != 0;
+        attachmentUri = in.readString();
+        attachmentType = AttachmentType.values()[in.readInt()];
+    }
+
+    @Override
+    public void writeToParcel(Parcel dest, int flags) {
+        dest.writeString(text);
+        dest.writeString(displayText);
+        dest.writeByte((byte) (isUserMessage ? 1 : 0));
+        dest.writeLong(timestamp);
+        dest.writeByte((byte) (isEdited ? 1 : 0));
+        dest.writeString(attachmentUri);
+        dest.writeInt(attachmentType.ordinal());
+    }
+
+    @Override
+    public int describeContents() {
+        return 0;
+    }
+
+    public static final Creator<ChatMessage> CREATOR = new Creator<ChatMessage>() {
+        @Override
+        public ChatMessage createFromParcel(Parcel in) {
+            return new ChatMessage(in);
+        }
+
+        @Override
+        public ChatMessage[] newArray(int size) {
+            return new ChatMessage[size];
+        }
+    };
+
     public String getText() {
         return text;
+    }
+    
+    /**
+     * Получает текст для отображения (может содержать анимацию печатания)
+     */
+    public String getDisplayText() {
+        return displayText != null ? displayText : text;
+    }
+    
+    /**
+     * Устанавливает текст для отображения (для анимации печатания)
+     */
+    public void setTextForDisplay(String displayText) {
+        this.displayText = displayText;
     }
 
     public void setText(String text) {
@@ -45,6 +103,7 @@ public class ChatMessage {
         } else {
             this.text = text;
         }
+        this.displayText = this.text; // Обновляем и отображаемый текст
         this.isEdited = true;
     }
 
@@ -78,5 +137,13 @@ public class ChatMessage {
 
     public boolean isEdited() {
         return isEdited;
+    }
+
+    /**
+     * Проверяет, является ли сообщение пользовательским
+     * @return true если сообщение от пользователя, false в противном случае
+     */
+    public boolean isUser() {
+        return isUserMessage();
     }
 } 

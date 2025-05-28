@@ -13,8 +13,8 @@
     <color name="text_secondary">#E0E0E0</color>
     
     <!-- Цвета для сообщений в темной теме -->
-    <color name="message_user_background">#424242</color>
-    <color name="message_ai_background">#1E1E1E</color>
+    <color name="message_user_background">#1976D2</color>
+    <color name="message_ai_background">#2C3E50</color>
     <color name="message_user_text">#FFFFFF</color>
     <color name="message_ai_text">#FFFFFF</color>
 </resources> 

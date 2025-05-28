@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Явное определение светлой темы для всех версий Android -->
+    <style name="Theme.MyApplication" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary_light</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_light</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent_light</item>
+        <item name="colorSecondaryVariant">@color/accent_light</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorAccent">@color/accent_light</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnBackground">@color/on_background_light</item>
+        <item name="colorOnSurface">@color/on_surface_light</item>
+        
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/primary_dark_light</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_primary_light</item>
+        <item name="android:textColorSecondary">@color/text_secondary_light</item>
+        
+        <!-- Карточка сообщения -->
+        <item name="cardBackgroundColor">@color/surface_light</item>
+        
+        <!-- Применяем стиль для диалогов -->
+        <item name="materialAlertDialogTheme">@style/Alan.Dialog.Light</item>
+        <item name="alertDialogTheme">@style/Alan.Dialog.Light</item>
+        
+        <!-- Контролы -->
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlHighlight">@color/primary_light</item>
+        
+        <!-- ActionBar стили -->
+        <item name="actionBarTheme">@style/ThemeOverlay.App.ActionBar.Light</item>
+        <item name="actionBarPopupTheme">@style/ThemeOverlay.App.PopupMenu.Light</item>
+        
+        <!-- Применяем стили кнопок -->
+        <item name="buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonOutlinedStyle">@style/Alan.Button.Outlined.Light</item>
+        <item name="borderlessButtonStyle">@style/Alan.Button.Text.Light</item>
+        <item name="floatingActionButtonStyle">@style/Alan.FloatingActionButton.Light</item>
+        
+        <!-- Стили для полей ввода -->
+        <item name="textInputStyle">@style/Alan.TextInputLayout.Light</item>
+        <item name="editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="android:editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="textInputOutlinedStyle">@style/Alan.TextInputLayout.OutlinedBox.Light</item>
+    </style>
+    
+    <!-- Светлая тема приложения (явно определенная) -->
+    <style name="Theme.MyApplication.Light" parent="Theme.MaterialComponents.Light.NoActionBar">
+        <!-- Primary brand color -->
+        <item name="colorPrimary">@color/primary_light</item>
+        <item name="colorPrimaryVariant">@color/primary_dark_light</item>
+        <item name="colorOnPrimary">@color/white</item>
+        
+        <!-- Secondary brand color -->
+        <item name="colorSecondary">@color/accent_light</item>
+        <item name="colorSecondaryVariant">@color/accent_light</item>
+        <item name="colorOnSecondary">@color/white</item>
+        <item name="colorAccent">@color/accent_light</item>
+        
+        <!-- Background colors -->
+        <item name="android:colorBackground">@color/background_light</item>
+        <item name="colorSurface">@color/surface_light</item>
+        <item name="colorOnBackground">@color/on_background_light</item>
+        <item name="colorOnSurface">@color/on_surface_light</item>
+        
+        <!-- Status bar color -->
+        <item name="android:statusBarColor">@color/primary_dark_light</item>
+        
+        <!-- Text colors -->
+        <item name="android:textColorPrimary">@color/text_primary_light</item>
+        <item name="android:textColorSecondary">@color/text_secondary_light</item>
+        
+        <!-- Карточка сообщения -->
+        <item name="cardBackgroundColor">@color/surface_light</item>
+        
+        <!-- Применяем стиль для диалогов -->
+        <item name="materialAlertDialogTheme">@style/Alan.Dialog.Light</item>
+        <item name="alertDialogTheme">@style/Alan.Dialog.Light</item>
+        
+        <!-- Контролы -->
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlHighlight">@color/primary_light</item>
+        
+        <!-- ActionBar стили -->
+        <item name="actionBarTheme">@style/ThemeOverlay.App.ActionBar.Light</item>
+        <item name="actionBarPopupTheme">@style/ThemeOverlay.App.PopupMenu.Light</item>
+        
+        <!-- Применяем стили кнопок -->
+        <item name="buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="android:buttonBarButtonStyle">@style/Alan.Button.Common.Light</item>
+        <item name="materialButtonOutlinedStyle">@style/Alan.Button.Outlined.Light</item>
+        <item name="borderlessButtonStyle">@style/Alan.Button.Text.Light</item>
+        <item name="floatingActionButtonStyle">@style/Alan.FloatingActionButton.Light</item>
+        
+        <!-- Стили для полей ввода -->
+        <item name="textInputStyle">@style/Alan.TextInputLayout.Light</item>
+        <item name="editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="android:editTextStyle">@style/Alan.EditText.Light</item>
+        <item name="textInputOutlinedStyle">@style/Alan.TextInputLayout.OutlinedBox.Light</item>
+    </style>
+    
+    <!-- Стили для ActionBar в светлой теме -->
+    <style name="ThemeOverlay.App.ActionBar.Light" parent="ThemeOverlay.MaterialComponents.ActionBar.Primary">
+        <item name="colorControlNormal">@color/white</item>
+        <item name="android:textColorPrimary">@color/white</item>
+    </style>
+    
+    <style name="ThemeOverlay.App.PopupMenu.Light" parent="ThemeOverlay.MaterialComponents.Light">
+        <item name="colorControlNormal">@color/text_primary_light</item>
+        <item name="android:textColorPrimary">@color/text_primary_light</item>
+    </style>
+</resources> 

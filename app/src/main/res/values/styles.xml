@@ -110,14 +110,14 @@
     <!-- Стиль для текстовых кнопок и кнопок с контуром в светлой теме -->
     <style name="Alan.Button.Text.Light" parent="Widget.MaterialComponents.Button.TextButton">
         <item name="android:textColor">@color/primary_light</item>
-        <item name="rippleColor">@color/primary_light</item>
+        <item name="iconTint">@color/primary_light</item>
     </style>
 
     <style name="Alan.Button.Outlined.Light" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textColor">@color/primary_light</item>
         <item name="strokeColor">@color/primary_light</item>
         <item name="strokeWidth">1dp</item>
-        <item name="android:textColor">@color/primary_light</item>
-        <item name="rippleColor">@color/primary_light</item>
+        <item name="iconTint">@color/primary_light</item>
     </style>
 
     <!-- Стили для полей ввода в светлой теме -->

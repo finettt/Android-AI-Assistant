@@ -15,6 +15,8 @@ import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
+import io.finett.myapplication.util.MessageAnimator;
+
 /**
  * Адаптер для отображения сообщений в системном ассистенте
  */
@@ -66,6 +68,16 @@ public class SystemAssistantMessageAdapter extends RecyclerView.Adapter<Recycler
             assistantHolder.sourceText.setText(message.getSource());
             assistantHolder.timeText.setText(formatTime(message.getTimestamp()));
         }
+        
+        // Применяем анимацию появления новых сообщений
+        MessageAnimator.animate(holder.itemView, position, context);
+    }
+
+    @Override
+    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
+        // Очищаем анимацию при откреплении вида
+        holder.itemView.clearAnimation();
+        super.onViewDetachedFromWindow(holder);
     }
 
     @Override
@@ -103,6 +115,8 @@ public class SystemAssistantMessageAdapter extends RecyclerView.Adapter<Recycler
         if (messages != null) {
             this.messages.addAll(messages);
         }
+        // Сбрасываем состояние анимации
+        MessageAnimator.resetAnimationState();
         notifyDataSetChanged();
     }
 
@@ -119,6 +133,8 @@ public class SystemAssistantMessageAdapter extends RecyclerView.Adapter<Recycler
 
     public void clear() {
         messages.clear();
+        // Сбрасываем состояние анимации
+        MessageAnimator.resetAnimationState();
         notifyDataSetChanged();
     }
 

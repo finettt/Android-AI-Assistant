@@ -123,4 +123,44 @@ public class PromptManager {
         savePrompt(defaultPrompt);
         setActivePrompt(defaultPrompt);
     }
+
+    /**
+     * Создает системный промпт с учетом контекстной информации
+     * @param contextInfoProvider провайдер контекстной информации
+     * @return системный промпт с контекстной информацией
+     */
+    public SystemPrompt createSystemPrompt(ContextInfoProvider contextInfoProvider) {
+        SystemPrompt activePrompt = getActivePrompt();
+        if (activePrompt == null) {
+            // Создаем стандартный промпт, если активный не найден
+            activePrompt = new SystemPrompt(
+                "Вы - голосовой помощник Алан. Отвечайте кратко и по существу.",
+                "Стандартный промпт",
+                true,
+                true
+            );
+        }
+        
+        // Получаем контекстную информацию
+        String time = contextInfoProvider.getFormattedTime();
+        String location = contextInfoProvider.getFormattedLocation();
+        String userName = contextInfoProvider.getUserName();
+        
+        // Формируем расширенный промпт с контекстной информацией
+        StringBuilder enhancedPrompt = new StringBuilder(activePrompt.getText());
+        enhancedPrompt.append("\n\nКонтекстная информация:");
+        enhancedPrompt.append("\nВремя: ").append(time);
+        enhancedPrompt.append("\nМестоположение: ").append(location);
+        if (!userName.isEmpty()) {
+            enhancedPrompt.append("\nИмя пользователя: ").append(userName);
+        }
+        
+        // Создаем новый промпт с расширенным текстом
+        return new SystemPrompt(
+            enhancedPrompt.toString(),
+            activePrompt.getDescription(),
+            activePrompt.isActive(),
+            activePrompt.isDefault()
+        );
+    }
 } 

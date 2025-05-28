@@ -42,6 +42,15 @@ import io.finett.myapplication.util.VolumeManager;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
+import okhttp3.ResponseBody;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.util.List;
 
 /**
  * Активность системного ассистента с прозрачным фоном и фиолетовой рамкой
@@ -438,7 +447,7 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
         messageAdapter.addMessage(listeningMessage);
         messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
         
-        // Создаем анимацию точек (имитация печати)
+        // Создаем анимацию точек (имитация печатания)
         final String[] dots = {".  ", ".. ", "..."};
         final int[] index = {0};
         
@@ -522,9 +531,20 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                         // Перезапуск будет происходить только после окончания воспроизведения ответа
                     }
                     // Проверяем, является ли команда системной
-                    else if (commandProcessor != null && commandProcessor.processCommand(recognizedText)) {
-                        // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
-                        // Перезапуск будет происходить только после окончания воспроизведения ответа
+                    else if (commandProcessor != null) {
+                        String response = commandProcessor.processCommand(recognizedText);
+                        if (response != null) {
+                            // Добавляем ответ в список сообщений
+                            AssistantMessage responseMessage = new AssistantMessage(response, "Система", false);
+                            messageAdapter.addMessage(responseMessage);
+                            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+                            
+                            // Озвучиваем ответ
+                            speak(response);
+                        } else {
+                            // Если это не системная команда, отправляем запрос к API
+                            sendMessageToApi(recognizedText);
+                        }
                     } else {
                         // Если это не системная команда, отправляем запрос к API
                         sendMessageToApi(recognizedText);
@@ -555,100 +575,133 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
     }
     
     /**
-     * Отправляет сообщение пользователя к API
+     * Отправляет сообщение в API и получает ответ
      */
     private void sendMessageToApi(String message) {
-        if (apiKey == null) {
-            logError("API ключ не установлен");
-            // В случае ошибки активируем прослушивание снова
+        // Если API ключ не настроен, ничего не делаем
+        if (apiKey == null || apiKey.isEmpty()) {
+            logError("API ключ не настроен");
             handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
             return;
         }
         
-        // Показываем индикатор загрузки
-        messageAdapter.setLoading(true);
-        
-        // Создаем запрос к API
+        // Создаем тело запроса
         Map<String, Object> body = new HashMap<>();
-        body.put("model", "qwen/qwen3-235b-a22b:free"); // используем Qwen 3 модель
+        body.put("model", "qwen/qwen3-235b-a22b:free");
+        body.put("temperature", 0.7);
+        body.put("top_p", 0.95);
+        body.put("max_tokens", 800);
         
-        ArrayList<Map<String, Object>> messages = new ArrayList<>();
+        // Используем обычный запрос вместо стриминга
+        body.put("stream", false);
+        
+        // Создаем массив сообщений
+        List<Map<String, String>> messages = new ArrayList<>();
+        
+        // Добавляем системный промпт
+        Map<String, String> systemMessage = new HashMap<>();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", "Ты голосовой ассистент на Android устройстве. Отвечай кратко и по делу. Предпочитай краткие ответы.");
+        messages.add(systemMessage);
         
         // Добавляем сообщение пользователя
-        Map<String, Object> userMessage = new HashMap<>();
+        Map<String, String> userMessage = new HashMap<>();
         userMessage.put("role", "user");
         userMessage.put("content", message);
         messages.add(userMessage);
         
         body.put("messages", messages);
         
-        // Отправляем запрос
-        openRouterApi.getChatCompletion(
+        // Показываем индикатор загрузки
+        messageAdapter.setLoading(true);
+        
+        // Используем обычный API запрос
+        Call<Map<String, Object>> call = openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
                 "Alan AI Assistant",
                 "Android Chat App",
                 body
-        ).enqueue(new Callback<Map<String, Object>>() {
+        );
+        
+        call.enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> messageAdapter.setLoading(false));
+                if (!response.isSuccessful()) {
+                    runOnUiThread(() -> {
+                        messageAdapter.setLoading(false);
+                        try {
+                            String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
+                            logError("Ошибка API: " + response.code() + " " + errorBody);
+                        } catch (Exception e) {
+                            logError("Ошибка при обработке ответа сервера: " + e.getMessage());
+                        }
+                        // Перезапускаем распознавание в случае ошибки
+                        handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                    });
+                    return;
+                }
                 
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
-                        Map<String, Object> responseBody = response.body();
+                try {
+                    // Обрабатываем ответ
+                    Map<String, Object> responseBody = response.body();
+                    
+                    if (responseBody != null && responseBody.containsKey("choices")) {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
-                        
                         if (choices != null && !choices.isEmpty()) {
                             Map<String, Object> choice = choices.get(0);
                             if (choice.containsKey("message")) {
                                 Map<String, Object> messageObj = (Map<String, Object>) choice.get("message");
-                                String content = (String) messageObj.get("content");
-                                
-                                if (content != null && !content.isEmpty()) {
-                                    AssistantMessage botMessage = new AssistantMessage(content, "Qwen", false);
+                                if (messageObj.containsKey("content")) {
+                                    String content = (String) messageObj.get("content");
+                                    
+                                    // Добавляем сообщение ассистента
                                     runOnUiThread(() -> {
-                                        messageAdapter.addMessage(botMessage);
-                                        messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+                                        messageAdapter.setLoading(false);
                                         
-                                        // Воспроизводим текст с помощью TextToSpeech
-                                        // Прослушивание будет активировано после завершения речи
-                                        speak(content);
+                                        if (content != null && !content.isEmpty()) {
+                                            AssistantMessage assistantMessage = new AssistantMessage(content, "Qwen", false);
+                                            messageAdapter.addMessage(assistantMessage);
+                                            messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+                                            
+                                            // Озвучиваем ответ
+                                            speak(content);
+                                        } else {
+                                            logError("Пустой ответ от модели");
+                                        }
                                     });
-                                } else {
-                                    logError("Не удалось получить ответ от сервера");
-                                    // Перезапускаем распознавание в случае ошибки
-                                    handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                                    return;
                                 }
-                            } else {
-                                logError("Неправильный формат ответа");
-                                // Перезапускаем распознавание в случае ошибки
-                                handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
                             }
-                        } else {
-                            logError("Пустой ответ от сервера");
-                            // Перезапускаем распознавание в случае ошибки
-                            handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
                         }
-                    } catch (Exception e) {
+                    }
+                    
+                    // Если не удалось извлечь ответ
+                    runOnUiThread(() -> {
+                        messageAdapter.setLoading(false);
+                        logError("Не удалось получить ответ от модели");
+                        // Перезапускаем распознавание в случае ошибки
+                        handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                    });
+                } catch (Exception e) {
+                    Log.e(TAG, "Ошибка при обработке ответа: " + e.getMessage());
+                    runOnUiThread(() -> {
+                        messageAdapter.setLoading(false);
                         logError("Ошибка при обработке ответа: " + e.getMessage());
                         // Перезапускаем распознавание в случае ошибки
                         handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
-                    }
-                } else {
-                    logError("Ошибка сервера: " + response.code());
-                    // Перезапускаем распознавание в случае ошибки
-                    handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                    });
                 }
             }
             
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> messageAdapter.setLoading(false));
-                logError("Ошибка сети: " + t.getMessage());
-                // Перезапускаем распознавание в случае ошибки сети
-                handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                Log.e(TAG, "Ошибка сети: " + t.getMessage());
+                runOnUiThread(() -> {
+                    messageAdapter.setLoading(false);
+                    logError("Ошибка сети: " + t.getMessage());
+                    // Перезапускаем распознавание в случае ошибки сети
+                    handler.postDelayed(() -> startDirectVoiceRecognition(), 1000);
+                });
             }
         });
     }
@@ -1338,8 +1391,20 @@ public class SystemAssistantActivity extends AppCompatActivity implements TextTo
                 // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
             }
             // Проверяем, является ли команда системной
-            else if (commandProcessor != null && commandProcessor.processCommand(recognizedText)) {
-                // Не запускаем новый цикл распознавания автоматически, дождемся завершения ответа
+            else if (commandProcessor != null) {
+                String response = commandProcessor.processCommand(recognizedText);
+                if (response != null) {
+                    // Добавляем ответ в список сообщений
+                    AssistantMessage responseMessage = new AssistantMessage(response, "Система", false);
+                    messageAdapter.addMessage(responseMessage);
+                    messagesRecyclerView.smoothScrollToPosition(messageAdapter.getItemCount() - 1);
+                    
+                    // Озвучиваем ответ
+                    speak(response);
+                } else {
+                    // Если это не системная команда, отправляем запрос к API
+                    sendMessageToApi(recognizedText);
+                }
             } else {
                 // Если это не системная команда, отправляем запрос к API
                 sendMessageToApi(recognizedText);

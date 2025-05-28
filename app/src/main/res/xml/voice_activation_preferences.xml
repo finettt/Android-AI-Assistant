@@ -10,7 +10,7 @@
             android:key="voice_activation_enabled"
             android:title="Включить голосовую активацию"
             android:summary="Реагировать на активационные фразы, даже когда приложение не на переднем плане"
-            android:defaultValue="true"
+            android:defaultValue="false"
             app:iconSpaceReserved="false" />
     </PreferenceCategory>
 

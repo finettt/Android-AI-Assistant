@@ -2,6 +2,8 @@ package io.finett.myapplication.adapter;
 
 import android.content.Context;
 import android.net.Uri;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -25,6 +27,7 @@ import io.finett.myapplication.MainActivity;
 import io.finett.myapplication.R;
 import io.finett.myapplication.model.ChatMessage;
 import io.finett.myapplication.util.AccessibilityManager;
+import io.finett.myapplication.util.MessageAnimator;
 
 public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     private final List<ChatMessage> messages = new ArrayList<>();
@@ -74,6 +77,9 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
     public void onBindViewHolder(@NonNull RecyclerView.ViewHolder holder, int position) {
         if (holder instanceof MessageViewHolder) {
             bindMessageViewHolder((MessageViewHolder) holder, position);
+            
+            // Применяем анимацию появления к новым сообщениям
+            MessageAnimator.animate(holder.itemView, position, context);
         } else if (holder instanceof LoadingViewHolder) {
             // No binding needed for loading placeholder
         }
@@ -103,10 +109,11 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         }
         holder.messageContainer.setLayoutParams(params);
 
-        holder.messageText.setText(message.getText());
+        // Используем displayText вместо text для поддержки анимации печатания
+        holder.messageText.setText(message.getDisplayText());
         
-        // Отображение отметки о редактировании
-        holder.editedMark.setVisibility(message.isEdited() ? View.VISIBLE : View.GONE);
+        // Не отображаем отметку о редактировании сообщения
+        holder.editedMark.setVisibility(View.GONE);
         
         // Если есть вложение
         if (message.hasAttachment()) {
@@ -184,6 +191,8 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
         if (messages != null) {
             this.messages.addAll(messages);
         }
+        // Сбрасываем состояние анимации, чтобы все сообщения могли быть анимированы
+        MessageAnimator.resetAnimationState();
         notifyDataSetChanged();
     }
 
@@ -204,6 +213,8 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
 
     public void clear() {
         messages.clear();
+        // Сбрасываем состояние анимации
+        MessageAnimator.resetAnimationState();
         notifyDataSetChanged();
     }
     
@@ -226,6 +237,13 @@ public class ChatAdapter extends RecyclerView.Adapter<RecyclerView.ViewHolder> {
                 recyclerView.smoothScrollToPosition(getItemCount() - 1);
             }
         }
+    }
+
+    @Override
+    public void onViewDetachedFromWindow(@NonNull RecyclerView.ViewHolder holder) {
+        // Очищаем анимацию при откреплении вида
+        holder.itemView.clearAnimation();
+        super.onViewDetachedFromWindow(holder);
     }
 
     static class MessageViewHolder extends RecyclerView.ViewHolder {

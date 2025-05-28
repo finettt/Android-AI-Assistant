@@ -10,6 +10,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Looper;
 import android.provider.MediaStore;
 import android.text.TextUtils;
 import android.util.Log;
@@ -25,6 +26,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.widget.HorizontalScrollView;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
@@ -40,9 +42,13 @@ import com.bumptech.glide.Glide;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textfield.TextInputEditText;
 import com.google.android.material.textfield.TextInputLayout;
+import com.google.android.material.chip.Chip;
+import com.google.android.material.chip.ChipGroup;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -68,6 +74,7 @@ import io.finett.myapplication.util.UserManager;
 import io.finett.myapplication.util.AccessibilityManager;
 import io.finett.myapplication.service.WeatherService;
 import io.finett.myapplication.model.WeatherData;
+import io.finett.myapplication.util.SuggestionGenerator;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -75,6 +82,10 @@ import io.finett.myapplication.base.BaseAccessibilityActivity;
 import com.google.gson.Gson;
 // Используем правильный путь к AssistantLauncher
 // import io.finett.myapplication.util.AssistantLauncher;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+import okhttp3.ResponseBody;
 
 public class MainActivity extends BaseAccessibilityActivity implements 
         ChatsAdapter.OnChatClickListener, 
@@ -107,6 +118,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private BroadcastReceiver settingsReceiver;
     private WeatherService weatherService;
     private BroadcastReceiver assistantLaunchReceiver;
+    private HorizontalScrollView suggestionsScrollView;
+    private ChipGroup suggestionsChipGroup;
+    private SuggestionGenerator suggestionGenerator;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -140,6 +154,18 @@ public class MainActivity extends BaseAccessibilityActivity implements
             startActivity(new Intent(this, PermissionRequestActivity.class));
             finish();
             return;
+        }
+        
+        // Проверяем разрешение на доступ к контактам
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                this,
+                new String[]{Manifest.permission.READ_CONTACTS},
+                103 // ContactsManager.PERMISSION_REQUEST_CONTACTS
+            );
+            Log.d("MainActivity", "Запрашиваем разрешение на доступ к контактам");
+        } else {
+            Log.d("MainActivity", "Разрешение на доступ к контактам уже предоставлено");
         }
         
         setupToolbar();
@@ -179,6 +205,14 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
         // Регистрируем слушателя событий запуска ассистента
         registerAssistantLaunchListener();
+
+        setupViews();
+        
+        // Инициализируем генератор подсказок
+        suggestionGenerator = new SuggestionGenerator(this, suggestions -> {
+            Log.d("MainActivity", "Получен callback с подсказками: " + suggestions.size());
+            runOnUiThread(() -> updateSuggestionsUI(suggestions));
+        });
     }
 
     @Override
@@ -413,177 +447,193 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private void sendMessage() {
-        // Обновляем apiKey перед отправкой, чтобы учесть возможное изменение настроек
-        apiKey = getApiKey();
-        
-        if (apiKey == null) {
-            showError("API ключ не установлен");
-            showApiKeyDialog();
-            return;
-        }
-
-        if (currentChat == null) {
-            showError("Создайте новый чат");
-            showNewChatDialog();
-            return;
-        }
-
         String message = binding.messageInput.getText().toString().trim();
-        if (message.isEmpty()) return;
+        if (message.isEmpty()) {
+            return;
+        }
 
-        // Добавляем сообщение пользователя в чат
+        // Очищаем поле ввода
+        binding.messageInput.setText("");
+
+        // Если текущий чат не выбран, создаем новый
+        if (currentChat == null) {
+            createNewChat("Новый чат", availableModels.get(0).getId());
+        }
+
+        // Добавляем сообщение пользователя
         ChatMessage userMessage = new ChatMessage(message, true);
         chatAdapter.addMessage(userMessage);
         currentChat.addMessage(userMessage);
-        binding.messageInput.setText("");
+        saveChats();
         
         // Показываем индикатор загрузки
         chatAdapter.setLoading(true);
         
-        // Проверяем, является ли сообщение запросом о погоде
+        // Проверяем, не запрос ли это о погоде
         if (isWeatherRequest(message)) {
             processWeatherRequest(message);
             return;
         }
 
-        // Создаем запрос к API
+        // Если ключ API не настроен, показываем диалог
+        if (apiKey == null || apiKey.isEmpty()) {
+            chatAdapter.setLoading(false);
+            showApiKeyDialog();
+            return;
+        }
+
+        // Подготавливаем запрос
         Map<String, Object> body = new HashMap<>();
         body.put("model", currentChat.getModelId());
+        body.put("temperature", 0.7);
+        body.put("top_p", 0.95);
+        body.put("max_tokens", 800);
         
-        ArrayList<Map<String, Object>> messages = new ArrayList<>();
+        // Убираем параметр для стриминга
+        body.put("stream", false);
 
-        // Добавляем все предыдущие сообщения для контекста
-        for (ChatMessage chatMessage : currentChat.getMessages()) {
-            if (!chatMessage.hasAttachment()) {
-                Map<String, Object> messageMap = new HashMap<>();
-                messageMap.put("role", chatMessage.isUserMessage() ? "user" : "assistant");
+        // Создаем массив сообщений
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        // Добавляем системный промпт
+        Map<String, Object> systemMessage = new HashMap<>();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", "Ты полезный AI ассистент. Отвечай кратко и информативно.");
+        messages.add(systemMessage);
+
+        // Добавляем историю сообщений (максимум 10 последних сообщений)
+        int historySize = Math.min(currentChat.getMessages().size(), 10);
+        for (int i = currentChat.getMessages().size() - historySize; i < currentChat.getMessages().size(); i++) {
+            ChatMessage historyMessage = currentChat.getMessages().get(i);
+            Map<String, Object> messageMap = new HashMap<>();
+            messageMap.put("role", historyMessage.isUser() ? "user" : "assistant");
+            
+            // Проверяем, есть ли у сообщения вложения
+            if (historyMessage.hasAttachment()) {
+                List<Map<String, Object>> content = new ArrayList<>();
                 
-                // Создаем массив контента для текстового сообщения
-                ArrayList<Map<String, Object>> content = new ArrayList<>();
+                // Добавляем текст
                 Map<String, Object> textContent = new HashMap<>();
                 textContent.put("type", "text");
-                textContent.put("text", chatMessage.getText());
+                textContent.put("text", historyMessage.getText());
                 content.add(textContent);
                 
                 messageMap.put("content", content);
-                messages.add(messageMap);
+            } else {
+                messageMap.put("content", historyMessage.getText());
             }
+            
+            messages.add(messageMap);
         }
         
         body.put("messages", messages);
-        // Отправляем запрос
-        openRouterApi.getChatCompletion(
+
+        // Используем API для получения ответа (без стриминга)
+        Call<Map<String, Object>> call = openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
                 "https://github.com/your-username/your-repo",
                 "Android Chat App",
                 body
-        ).enqueue(new Callback<Map<String, Object>>() {
+        );
+        
+        call.enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> chatAdapter.setLoading(false));
+                if (!response.isSuccessful()) {
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        try {
+                            String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
+                            showError("Ошибка API: " + response.code() + " " + errorBody);
+                            
+                            if (response.code() == 401) {
+                                apiKey = null;
+                                showApiKeyDialog();
+                            }
+                        } catch (Exception e) {
+                            showError("Ошибка при обработке ответа сервера: " + e.getMessage());
+                        }
+                    });
+                    return;
+                }
                 
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
-                        Log.d("MainActivity", "Response body: " + new Gson().toJson(response.body()));
-                        Map<String, Object> responseBody = response.body();
+                try {
+                    // Обрабатываем ответ
+                    Map<String, Object> responseBody = response.body();
+                    Log.d("MainActivity", "Получен ответ от API: " + responseBody);
+                    
+                    if (responseBody != null && responseBody.containsKey("choices")) {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
-                        
                         if (choices != null && !choices.isEmpty()) {
                             Map<String, Object> choice = choices.get(0);
                             if (choice.containsKey("message")) {
-                                Object messageObj = choice.get("message");
-                                String content = null;
-                                
-                                // Handle different message format types
-                                if (messageObj instanceof Map) {
-                                    Map<String, Object> message = (Map<String, Object>) messageObj;
+                                Map<String, Object> message = (Map<String, Object>) choice.get("message");
+                                if (message.containsKey("content")) {
+                                    String content = (String) message.get("content");
+                                    Log.d("MainActivity", "Извлечено содержимое ответа: " + content);
                                     
-                                    // Try to get content from different formats
-                                    if (message.containsKey("content")) {
-                                        Object contentObj = message.get("content");
-                                        
-                                        if (contentObj instanceof String) {
-                                            // Simple string content
-                                            content = (String) contentObj;
-                                        } else if (contentObj instanceof ArrayList) {
-                                            // Content as array of objects with text fields
-                                            ArrayList<Map<String, Object>> contentList = (ArrayList<Map<String, Object>>) contentObj;
-                                            StringBuilder sb = new StringBuilder();
-                                            
-                                            for (Map<String, Object> contentItem : contentList) {
-                                                if (contentItem.containsKey("type") && contentItem.get("type").equals("text") 
-                                                    && contentItem.containsKey("text")) {
-                                                    sb.append(contentItem.get("text").toString());
-                                                }
-                                            }
-                                            
-                                            content = sb.toString();
-                                        }
-                                    }
-                                }
-                                
-                                if (content != null && !content.isEmpty()) {
-                                    ChatMessage botMessage = new ChatMessage(content, false);
+                                    // Добавляем сообщение ассистента в чат
                                     runOnUiThread(() -> {
-                                        chatAdapter.addMessage(botMessage);
-                                        currentChat.addMessage(botMessage);
-                                        saveChats();
+                                        try {
+                                            chatAdapter.setLoading(false);
+                                            
+                                            if (content != null && !content.isEmpty()) {
+                                                ChatMessage botMessage = new ChatMessage(content, false);
+                                                Log.d("MainActivity", "Добавляем сообщение в чат: " + content);
+                                                chatAdapter.addMessage(botMessage);
+                                                currentChat.addMessage(botMessage);
+                                                
+                                                // Убедимся, что прокрутка работает
+                                                binding.chatRecyclerView.post(() -> {
+                                                    try {
+                                                        binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                                                    } catch (Exception e) {
+                                                        Log.e("MainActivity", "Ошибка при прокрутке: " + e.getMessage(), e);
+                                                    }
+                                                });
+                                                
+                                                // Сохраняем чаты
+                                                saveChats();
+                                                
+                                                // Генерируем подсказки на основе ответа
+                                                generateSuggestions(content);
+                                            } else {
+                                                Log.e("MainActivity", "Пустой ответ от модели");
+                                                showError("Модель вернула пустой ответ");
+                                            }
+                                        } catch (Exception e) {
+                                            Log.e("MainActivity", "Ошибка при обновлении UI: " + e.getMessage(), e);
+                                            showError("Ошибка при обновлении UI: " + e.getMessage());
+                                        }
                                     });
-                                } else {
-                                    showError("Не удалось извлечь текст из ответа сервера");
+                                    return;
                                 }
-                            } else if (choice.containsKey("delta")) {
-                                // Handle streaming response format
-                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
-                                if (delta.containsKey("content")) {
-                                    String content = (String) delta.get("content");
-                                    if (content != null && !content.isEmpty()) {
-                                        ChatMessage botMessage = new ChatMessage(content, false);
-                                        runOnUiThread(() -> {
-                                            chatAdapter.addMessage(botMessage);
-                                            currentChat.addMessage(botMessage);
-                                            saveChats();
-                                        });
-                                    }
-                                } else {
-                                    showError("В ответе отсутствует содержимое");
-                                }
-                            } else {
-                                showError("Некорректный формат ответа от сервера (отсутствует message или delta)");
                             }
-                        } else {
-                            showError("Пустой ответ от сервера (отсутствуют choices)");
                         }
-                    } catch (Exception e) {
-                        Log.e("MainActivity", "Ошибка при обработке ответа: " + e.getMessage(), e);
+                    }
+                    
+                    // Если не удалось извлечь ответ
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        showError("Не удалось получить ответ от модели");
+                    });
+                    
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Ошибка при обработке ответа: " + e.getMessage(), e);
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
                         showError("Ошибка при обработке ответа: " + e.getMessage());
-                    }
-                } else {
-                    try {
-                        if (response.errorBody() != null) {
-                            String errorBody = response.errorBody().string();
-                            showError("Ошибка сервера: " + errorBody);
-                        } else {
-                            showError("Ошибка сервера: " + response.code());
-                        }
-                        if (response.code() == 401) {
-                            runOnUiThread(() -> {
-                                apiKey = null;
-                                showApiKeyDialog();
-                            });
-                        }
-                    } catch (Exception e) {
-                        showError("Ошибка при обработке ответа сервера");
-                    }
+                    });
                 }
             }
-
+            
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> chatAdapter.setLoading(false));
-                showError("Ошибка сети");
+                Log.e("MainActivity", "Ошибка сети: " + t.getMessage());
+                runOnUiThread(() -> {
+                    chatAdapter.setLoading(false);
+                    showError("Ошибка сети: " + t.getMessage());
+                });
             }
         });
     }
@@ -669,6 +719,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
             chatAdapter.addMessage(botMessage);
             currentChat.addMessage(botMessage);
             saveChats();
+            
+            // Генерируем подсказки на основе ответа бота
+            generateSuggestions(text);
         });
     }
 
@@ -711,12 +764,19 @@ public class MainActivity extends BaseAccessibilityActivity implements
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
                                          @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        
         if (requestCode == PERMISSION_REQUEST_CODE) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                 launchCamera();
             } else {
-                // Перенаправляем на экран разрешений, так как пользователь отказал в разрешении
-                startActivity(new Intent(this, PermissionRequestActivity.class));
+                Toast.makeText(this, "Разрешение на камеру отклонено", Toast.LENGTH_SHORT).show();
+            }
+        } else if (requestCode == 103) { // ContactsManager.PERMISSION_REQUEST_CONTACTS
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                Toast.makeText(this, "Разрешение на доступ к контактам предоставлено", Toast.LENGTH_SHORT).show();
+                // Обновляем интерфейс или выполняем действие, требующее доступа к контактам
+            } else {
+                Toast.makeText(this, "Разрешение на доступ к контактам отклонено. Некоторые функции будут недоступны.", Toast.LENGTH_LONG).show();
             }
         }
     }
@@ -794,8 +854,9 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private void sendImageToAPI(String caption, String base64Image) {
-        if (apiKey == null) {
-            showError("API ключ не установлен");
+        // Если ключ API не настроен, показываем диалог
+        if (apiKey == null || apiKey.isEmpty()) {
+            chatAdapter.setLoading(false);
             showApiKeyDialog();
             return;
         }
@@ -803,43 +864,37 @@ public class MainActivity extends BaseAccessibilityActivity implements
         // Показываем индикатор загрузки
         chatAdapter.setLoading(true);
         
-        // Создаем запрос к API
+        // Подготавливаем запрос
         Map<String, Object> body = new HashMap<>();
         body.put("model", currentChat.getModelId());
+        body.put("temperature", 0.7);
+        body.put("top_p", 0.95);
+        body.put("max_tokens", 800);
         
-        ArrayList<Map<String, Object>> messages = new ArrayList<>();
+        // Убираем параметр для стриминга
+        body.put("stream", false);
 
-        // Добавляем все предыдущие сообщения для контекста
-        for (ChatMessage chatMessage : currentChat.getMessages()) {
-            if (!chatMessage.hasAttachment()) {
-                Map<String, Object> messageMap = new HashMap<>();
-                messageMap.put("role", chatMessage.isUserMessage() ? "user" : "assistant");
-                
-                // Создаем массив контента для текстового сообщения
-                ArrayList<Map<String, Object>> content = new ArrayList<>();
-                Map<String, Object> textContent = new HashMap<>();
-                textContent.put("type", "text");
-                textContent.put("text", chatMessage.getText());
-                content.add(textContent);
-                
-                messageMap.put("content", content);
-                messages.add(messageMap);
-            }
-        }
-        
-        // Добавляем новое сообщение с изображением
+        // Создаем массив сообщений
+        List<Map<String, Object>> messages = new ArrayList<>();
+
+        // Добавляем системный промпт для обработки изображений
+        Map<String, Object> systemMessage = new HashMap<>();
+        systemMessage.put("role", "system");
+        systemMessage.put("content", "Ты помощник, который может анализировать изображения. Опиши содержимое изображения подробно.");
+        messages.add(systemMessage);
+
+        // Добавляем сообщение пользователя с изображением
         Map<String, Object> messageMap = new HashMap<>();
         messageMap.put("role", "user");
         
-        ArrayList<Map<String, Object>> content = new ArrayList<>();
+        // Создаем контент сообщения
+        List<Map<String, Object>> content = new ArrayList<>();
         
-        // Добавляем текстовую часть, если есть подпись
-        if (!TextUtils.isEmpty(caption)) {
-            Map<String, Object> textContent = new HashMap<>();
-            textContent.put("type", "text");
-            textContent.put("text", caption);
-            content.add(textContent);
-        }
+        // Добавляем текст (подпись к изображению)
+        Map<String, Object> textContent = new HashMap<>();
+        textContent.put("type", "text");
+        textContent.put("text", caption);
+        content.add(textContent);
         
         // Добавляем изображение
         Map<String, Object> imageContent = new HashMap<>();
@@ -854,109 +909,115 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         body.put("messages", messages);
         
-        // Отправляем запрос
-        openRouterApi.getChatCompletion(
+        // Показываем индикатор загрузки
+        chatAdapter.setLoading(true);
+        
+        // Используем API для получения ответа (без стриминга)
+        Call<Map<String, Object>> call = openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
                 "https://github.com/your-username/your-repo",
                 "Android Chat App",
                 body
-        ).enqueue(new Callback<Map<String, Object>>() {
+        );
+        
+        call.enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> chatAdapter.setLoading(false));
+                if (!response.isSuccessful()) {
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        try {
+                            String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
+                            showError("Ошибка API: " + response.code() + " " + errorBody);
+                            
+                            if (response.code() == 401) {
+                                apiKey = null;
+                                showApiKeyDialog();
+                            }
+                        } catch (Exception e) {
+                            showError("Ошибка при обработке ответа сервера: " + e.getMessage());
+                        }
+                    });
+                    return;
+                }
                 
-                if (response.isSuccessful() && response.body() != null) {
-                    try {
-                        Log.d("MainActivity", "Response body: " + new Gson().toJson(response.body()));
-                        Map<String, Object> responseBody = response.body();
+                try {
+                    // Обрабатываем ответ
+                    Map<String, Object> responseBody = response.body();
+                    Log.d("MainActivity", "Получен ответ от API для изображения: " + responseBody);
+                    
+                    if (responseBody != null && responseBody.containsKey("choices")) {
                         ArrayList<Map<String, Object>> choices = (ArrayList<Map<String, Object>>) responseBody.get("choices");
-                        
                         if (choices != null && !choices.isEmpty()) {
                             Map<String, Object> choice = choices.get(0);
                             if (choice.containsKey("message")) {
-                                Object messageObj = choice.get("message");
-                                String content = null;
-                                
-                                // Handle different message format types
-                                if (messageObj instanceof Map) {
-                                    Map<String, Object> message = (Map<String, Object>) messageObj;
+                                Map<String, Object> message = (Map<String, Object>) choice.get("message");
+                                if (message.containsKey("content")) {
+                                    String content = (String) message.get("content");
+                                    Log.d("MainActivity", "Извлечено содержимое ответа для изображения: " + content);
                                     
-                                    // Try to get content from different formats
-                                    if (message.containsKey("content")) {
-                                        Object contentObj = message.get("content");
-                                        
-                                        if (contentObj instanceof String) {
-                                            // Simple string content
-                                            content = (String) contentObj;
-                                        } else if (contentObj instanceof ArrayList) {
-                                            // Content as array of objects with text fields
-                                            ArrayList<Map<String, Object>> contentList = (ArrayList<Map<String, Object>>) contentObj;
-                                            StringBuilder sb = new StringBuilder();
-                                            
-                                            for (Map<String, Object> contentItem : contentList) {
-                                                if (contentItem.containsKey("type") && contentItem.get("type").equals("text") 
-                                                    && contentItem.containsKey("text")) {
-                                                    sb.append(contentItem.get("text").toString());
-                                                }
-                                            }
-                                            
-                                            content = sb.toString();
-                                        }
-                                    }
-                                }
-                                
-                                if (content != null && !content.isEmpty()) {
-                                    ChatMessage botMessage = new ChatMessage(content, false);
+                                    // Добавляем сообщение ассистента в чат
                                     runOnUiThread(() -> {
-                                        chatAdapter.addMessage(botMessage);
-                                        currentChat.addMessage(botMessage);
-                                        saveChats();
+                                        try {
+                                            chatAdapter.setLoading(false);
+                                            
+                                            if (content != null && !content.isEmpty()) {
+                                                ChatMessage botMessage = new ChatMessage(content, false);
+                                                Log.d("MainActivity", "Добавляем сообщение в чат (изображение): " + content);
+                                                chatAdapter.addMessage(botMessage);
+                                                currentChat.addMessage(botMessage);
+                                                
+                                                // Убедимся, что прокрутка работает
+                                                binding.chatRecyclerView.post(() -> {
+                                                    try {
+                                                        binding.chatRecyclerView.smoothScrollToPosition(chatAdapter.getItemCount() - 1);
+                                                    } catch (Exception e) {
+                                                        Log.e("MainActivity", "Ошибка при прокрутке: " + e.getMessage(), e);
+                                                    }
+                                                });
+                                                
+                                                // Сохраняем чаты
+                                                saveChats();
+                                                
+                                                // Генерируем подсказки на основе ответа
+                                                generateSuggestions(content);
+                                            } else {
+                                                Log.e("MainActivity", "Пустой ответ от модели для изображения");
+                                                showError("Модель вернула пустой ответ для изображения");
+                                            }
+                                        } catch (Exception e) {
+                                            Log.e("MainActivity", "Ошибка при обновлении UI (изображение): " + e.getMessage(), e);
+                                            showError("Ошибка при обновлении UI: " + e.getMessage());
+                                        }
                                     });
-                                } else {
-                                    showError("Не удалось извлечь текст из ответа сервера");
+                                    return;
                                 }
-                            } else if (choice.containsKey("delta")) {
-                                // Handle streaming response format
-                                Map<String, Object> delta = (Map<String, Object>) choice.get("delta");
-                                if (delta.containsKey("content")) {
-                                    String content = (String) delta.get("content");
-                                    if (content != null && !content.isEmpty()) {
-                                        ChatMessage botMessage = new ChatMessage(content, false);
-                                        runOnUiThread(() -> {
-                                            chatAdapter.addMessage(botMessage);
-                                            currentChat.addMessage(botMessage);
-                                            saveChats();
-                                        });
-                                    }
-                                } else {
-                                    showError("В ответе отсутствует содержимое");
-                                }
-                            } else {
-                                showError("Некорректный формат ответа от сервера (отсутствует message или delta)");
                             }
-                        } else {
-                            showError("Пустой ответ от сервера (отсутствуют choices)");
                         }
-                    } catch (Exception e) {
-                        Log.e("MainActivity", "Ошибка при обработке ответа: " + e.getMessage(), e);
+                    }
+                    
+                    // Если не удалось извлечь ответ
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
+                        showError("Не удалось получить ответ от модели для изображения");
+                    });
+                    
+                } catch (Exception e) {
+                    Log.e("MainActivity", "Ошибка при обработке ответа для изображения: " + e.getMessage(), e);
+                    runOnUiThread(() -> {
+                        chatAdapter.setLoading(false);
                         showError("Ошибка при обработке ответа: " + e.getMessage());
-                    }
-                } else {
-                    try {
-                        String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
-                        showError(errorBody);
-                    } catch (Exception e) {
-                        showError("Ошибка при обработке ответа сервера");
-                    }
+                    });
                 }
             }
-
+            
             @Override
             public void onFailure(Call<Map<String, Object>> call, Throwable t) {
-                // Скрываем индикатор загрузки
-                runOnUiThread(() -> chatAdapter.setLoading(false));
-                showError("Ошибка сети: " + t.getMessage());
+                Log.e("MainActivity", "Ошибка сети при отправке изображения: " + t.getMessage());
+                runOnUiThread(() -> {
+                    chatAdapter.setLoading(false);
+                    showError("Ошибка сети: " + t.getMessage());
+                });
             }
         });
     }
@@ -1429,7 +1490,7 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private void startVoiceActivationService() {
         try {
             SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-            boolean voiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", true);
+            boolean voiceActivationEnabled = prefs.getBoolean("voice_activation_enabled", false);
             
             if (voiceActivationEnabled) {
                 Log.d("MainActivity", "Автоматический запуск сервиса голосовой активации");
@@ -1442,6 +1503,116 @@ public class MainActivity extends BaseAccessibilityActivity implements
             }
         } catch (Exception e) {
             Log.e("MainActivity", "Ошибка при запуске сервиса голосовой активации", e);
+        }
+    }
+
+    private void setupViews() {
+        // Настройка подсказок
+        suggestionsScrollView = findViewById(R.id.suggestionsScrollView);
+        suggestionsChipGroup = findViewById(R.id.suggestionsChipGroup);
+        
+        if (suggestionsScrollView == null) {
+            Log.e("MainActivity", "ОШИБКА: suggestionsScrollView не найден в layout!");
+        } else {
+            // Установим видимость контейнера подсказок по умолчанию - VISIBLE
+            suggestionsScrollView.setVisibility(View.VISIBLE);
+            // Задаем фоновый цвет программно для уверенности, что он применен
+            suggestionsScrollView.setBackgroundResource(R.drawable.suggestions_background);
+            Log.d("MainActivity", "Контейнер подсказок инициализирован и видим");
+        }
+        
+        if (suggestionsChipGroup == null) {
+            Log.e("MainActivity", "ОШИБКА: suggestionsChipGroup не найден в layout!");
+        }
+    }
+
+    /**
+     * Генерирует подсказки на основе контекста чата
+     */
+    private void generateSuggestions(String lastBotMessage) {
+        Log.d("MainActivity", "Генерация подсказок для текста: " + (lastBotMessage.length() > 50 ? lastBotMessage.substring(0, 50) + "..." : lastBotMessage));
+        
+        // Очищаем предыдущие подсказки и показываем индикатор загрузки
+        runOnUiThread(() -> {
+            suggestionsChipGroup.removeAllViews();
+            
+            // Добавляем "загрузочный" чип
+            Chip loadingChip = new Chip(this);
+            loadingChip.setText("Генерирую подсказки...");
+            loadingChip.setClickable(false);
+            loadingChip.setCheckable(false);
+            suggestionsChipGroup.addView(loadingChip);
+            
+            // Показываем контейнер с подсказками
+            suggestionsScrollView.setVisibility(View.VISIBLE);
+            Log.d("MainActivity", "Показан индикатор загрузки подсказок");
+        });
+        
+        // Запускаем генерацию подсказок
+        suggestionGenerator.generateSuggestions(lastBotMessage);
+    }
+    
+    /**
+     * Обновляет UI с новыми подсказками
+     */
+    private void updateSuggestionsUI(List<String> suggestions) {
+        Log.d("MainActivity", "Получены подсказки: " + suggestions.size());
+        
+        // Убедимся, что выполняем на главном потоке
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            runOnUiThread(() -> updateSuggestionsUI(suggestions));
+            return;
+        }
+        
+        try {
+            // Очищаем текущие подсказки
+            suggestionsChipGroup.removeAllViews();
+            
+            if (suggestions != null && !suggestions.isEmpty()) {
+                // Отображаем контейнер с подсказками
+                suggestionsScrollView.setVisibility(View.VISIBLE);
+                
+                // Создаем чипы для каждой подсказки
+                for (String suggestion : suggestions) {
+                    if (suggestion == null || suggestion.trim().isEmpty()) {
+                        continue;
+                    }
+                    
+                    Log.d("MainActivity", "Добавление подсказки: " + suggestion);
+                    
+                    Chip chip = new Chip(this);
+                    chip.setText(suggestion);
+                    chip.setClickable(true);
+                    chip.setCheckable(false);
+                    
+                    // Обработчик нажатия на подсказку
+                    chip.setOnClickListener(v -> {
+                        // Отправляем выбранную подсказку как сообщение пользователя
+                        binding.messageInput.setText(suggestion);
+                        sendMessage();
+                    });
+                    
+                    suggestionsChipGroup.addView(chip);
+                }
+                
+                // Проверяем видимость после добавления
+                if (suggestionsScrollView.getVisibility() != View.VISIBLE) {
+                    Log.w("MainActivity", "Контейнер подсказок не виден после обновления!");
+                    suggestionsScrollView.setVisibility(View.VISIBLE);
+                }
+                
+                // Прокручиваем к началу, чтобы показать первую подсказку
+                suggestionsScrollView.fullScroll(HorizontalScrollView.FOCUS_LEFT);
+                
+            } else {
+                // Скрываем контейнер, если подсказок нет
+                Log.d("MainActivity", "Нет подсказок, скрываем контейнер");
+                suggestionsScrollView.setVisibility(View.GONE);
+            }
+        } catch (Exception e) {
+            Log.e("MainActivity", "Ошибка при обновлении подсказок: " + e.getMessage(), e);
+            // Пытаемся восстановиться - скрываем контейнер
+            suggestionsScrollView.setVisibility(View.GONE);
         }
     }
 }

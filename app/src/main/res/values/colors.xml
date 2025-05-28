@@ -36,12 +36,12 @@
     <color name="text_normal">#FFFFFF</color>
     
     <!-- Цвета для сообщений -->
-    <color name="message_user_background">#424242</color>
-    <color name="message_ai_background">#1E1E1E</color>
+    <color name="message_user_background">#1976D2</color>
+    <color name="message_ai_background">#c4f2f5</color>
     <color name="message_user_text">#FFFFFF</color>
-    <color name="message_ai_text">#FFFFFF</color>
-    <color name="user_message_background">#424242</color>
-    <color name="assistant_message_background">#1E1E1E</color>
+    <color name="message_ai_text">#212121</color>
+    <color name="user_message_background">#1976D2</color>
+    <color name="assistant_message_background">#c4f2f5</color>
     
     <!-- Цвета для высокого контраста -->
     <color name="high_contrast_user_message">#FFFF00</color>
@@ -81,8 +81,8 @@
     <color name="text_secondary_light">#757575</color>
     
     <!-- Цвета для сообщений в светлой теме -->
-    <color name="message_user_background_light">#E0E0E0</color>
-    <color name="message_ai_background_light">#F5F5F5</color>
+    <color name="message_user_background_light">#BBDEFB</color>
+    <color name="message_ai_background_light">#c4f2f5</color>
     <color name="message_user_text_light">#212121</color>
     <color name="message_ai_text_light">#212121</color>
     
@@ -108,4 +108,7 @@
     <color name="assistant_text_secondary">#E0E0E0</color>
     <color name="assistant_mic_shadow">#40000000</color>
     <color name="assistant_hint_text">#CCFFFFFF</color>
+    
+    <!-- Streaming cursor color -->
+    <color name="typing_cursor">#2979FF</color>
 </resources>

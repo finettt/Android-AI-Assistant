@@ -24,14 +24,14 @@
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:layout_marginEnd="8dp"
-                android:indeterminateTint="@color/message_ai_text_light"
+                android:indeterminateTint="@color/message_ai_text"
                 style="?android:attr/progressBarStyleSmall" />
 
             <TextView
                 android:id="@+id/loadingText"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:textColor="@color/message_ai_text_light"
+                android:textColor="@color/message_ai_text"
                 android:text="Думаю..."
                 android:textSize="14sp"
                 style="@style/TextAppearance.MaterialComponents.Body2" />

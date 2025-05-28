@@ -3,6 +3,7 @@ package io.finett.myapplication.util;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.text.TextUtils;
+import android.util.Log;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -114,12 +115,22 @@ public class ContactNlpProcessor {
         // Получаем все контакты
         List<ContactsManager.Contact> allContacts = contactsManager.searchContacts("");
         
+        Log.d("ContactNlpProcessor", "Загружено контактов для создания вариантов имен: " + allContacts.size());
+        
         // Создаем варианты имен для каждого контакта, если еще не созданы
         for (ContactsManager.Contact contact : allContacts) {
             if (!contactNameVariants.containsKey(contact.name)) {
                 Set<String> variants = generateNameVariants(contact.name);
                 contactNameVariants.put(contact.name, variants);
+                Log.d("ContactNlpProcessor", "Создано " + variants.size() + " вариантов для контакта " + contact.name);
             }
+        }
+        
+        // Если контактов нет, но есть сохраненные варианты имен, используем их
+        if (allContacts.isEmpty() && !contactNameVariants.isEmpty()) {
+            Log.d("ContactNlpProcessor", "Контакты не загружены, но используем " + contactNameVariants.size() + " сохраненных вариантов имен");
+        } else if (allContacts.isEmpty()) {
+            Log.d("ContactNlpProcessor", "Контакты не загружены и нет сохраненных вариантов имен");
         }
         
         // Сохраняем варианты
@@ -157,11 +168,11 @@ public class ContactNlpProcessor {
             // Только фамилия
             variants.add(parts[parts.length-1].toLowerCase());
             
-            // Генерируем простые падежные формы для имени
+            // Генерируем падежные и уменьшительно-ласкательные формы для имени
             String firstName = parts[0].toLowerCase();
             generateCaseVariants(firstName, variants);
             
-            // Генерируем простые падежные формы для фамилии
+            // Генерируем падежные и уменьшительно-ласкательные формы для фамилии
             String lastName = parts[parts.length-1].toLowerCase();
             generateCaseVariants(lastName, variants);
         }
@@ -170,24 +181,71 @@ public class ContactNlpProcessor {
     }
     
     /**
-     * Генерирует простые падежные формы для имени
+     * Генерирует падежные и уменьшительно-ласкательные формы для имени
      */
     private void generateCaseVariants(String name, Set<String> variants) {
-        // Правила для русских имен (упрощенные)
+        // Правила для русских имен (расширенные)
+        
+        // Уменьшительно-ласкательные формы для распространенных имен
+        Map<String, Set<String>> diminutives = new HashMap<>();
+        diminutives.put("александр", new HashSet<>(Arrays.asList("саша", "саня", "шура", "алекс", "сашка", "сашенька")));
+        diminutives.put("алексей", new HashSet<>(Arrays.asList("леша", "лёша", "лёха", "алёша", "алёха", "лёшка", "лёшенька")));
+        diminutives.put("анна", new HashSet<>(Arrays.asList("аня", "анечка", "анюта", "нюша", "анька", "аннушка")));
+        diminutives.put("дмитрий", new HashSet<>(Arrays.asList("дима", "димка", "димон", "митя", "димочка")));
+        diminutives.put("екатерина", new HashSet<>(Arrays.asList("катя", "катюша", "катенька", "катерина", "катька")));
+        diminutives.put("елена", new HashSet<>(Arrays.asList("лена", "ленка", "леночка", "еленка", "ленусик")));
+        diminutives.put("иван", new HashSet<>(Arrays.asList("ваня", "ванька", "ванечка", "иванушка")));
+        diminutives.put("мария", new HashSet<>(Arrays.asList("маша", "машка", "машенька", "маня", "манечка", "маруся")));
+        diminutives.put("михаил", new HashSet<>(Arrays.asList("миша", "мишка", "мишаня", "мишутка", "михась")));
+        diminutives.put("наталья", new HashSet<>(Arrays.asList("наташа", "ната", "натали", "наталка", "наташенька")));
+        diminutives.put("николай", new HashSet<>(Arrays.asList("коля", "колька", "колян", "николаша", "николенька")));
+        diminutives.put("ольга", new HashSet<>(Arrays.asList("оля", "олька", "оленька", "олечка")));
+        diminutives.put("сергей", new HashSet<>(Arrays.asList("серёга", "серёжа", "серж", "серёженька", "серый")));
+        diminutives.put("татьяна", new HashSet<>(Arrays.asList("таня", "танька", "танечка", "танюша")));
+        
+        // Добавляем уменьшительно-ласкательные формы, если имя есть в словаре
+        for (Map.Entry<String, Set<String>> entry : diminutives.entrySet()) {
+            if (name.equals(entry.getKey())) {
+                variants.addAll(entry.getValue());
+                
+                // Также добавляем падежные формы для каждой уменьшительной формы
+                for (String diminutive : entry.getValue()) {
+                    addCaseForms(diminutive, variants);
+                }
+            }
+        }
+        
+        // Добавляем падежные формы для исходного имени
+        addCaseForms(name, variants);
+    }
+    
+    /**
+     * Добавляет падежные формы для имени
+     */
+    private void addCaseForms(String name, Set<String> variants) {
+        // Правила для русских имен (расширенные)
         if (name.endsWith("й")) {
-            // Илья -> Илье, Ильи
+            // Илья -> Илье, Ильи, Илью, Ильёй
+            variants.add(name.substring(0, name.length()-1) + "е");
+            variants.add(name.substring(0, name.length()-1) + "и");
+            variants.add(name.substring(0, name.length()-1) + "ю");
+            variants.add(name.substring(0, name.length()-1) + "ей");
+            variants.add(name.substring(0, name.length()-1) + "ём");
+        } else if (name.endsWith("я")) {
+            // Катя -> Кате, Кати, Катю, Катей
             variants.add(name.substring(0, name.length()-1) + "е");
             variants.add(name.substring(0, name.length()-1) + "и");
             variants.add(name.substring(0, name.length()-1) + "ю");
             variants.add(name.substring(0, name.length()-1) + "ей");
         } else if (name.endsWith("а")) {
-            // Миша -> Мише, Миши
+            // Миша -> Мише, Миши, Мишу, Мишей
             variants.add(name.substring(0, name.length()-1) + "е");
             variants.add(name.substring(0, name.length()-1) + "и");
             variants.add(name.substring(0, name.length()-1) + "у");
             variants.add(name.substring(0, name.length()-1) + "ой");
+            variants.add(name.substring(0, name.length()-1) + "ей");
         } else if (name.endsWith("ь")) {
-            // Игорь -> Игоря, Игорю
+            // Игорь -> Игоря, Игорю, Игорем
             variants.add(name.substring(0, name.length()-1) + "я");
             variants.add(name.substring(0, name.length()-1) + "ю");
             variants.add(name.substring(0, name.length()-1) + "ем");
@@ -196,6 +254,12 @@ public class ContactNlpProcessor {
             variants.add(name + "а");
             variants.add(name + "у");
             variants.add(name + "ом");
+            variants.add(name + "е");
+            
+            // Для имен на твердую согласную, которые могут иметь мягкую форму
+            if (name.matches(".*[бвгджзклмнпрстфх]$")) {
+                variants.add(name + "ем");
+            }
         }
     }
     
@@ -259,10 +323,17 @@ public class ContactNlpProcessor {
      * Находит наиболее похожий контакт по частичному имени
      */
     public ContactsManager.Contact findContactByPartialNameFuzzy(String partialName) {
+        if (partialName == null || partialName.trim().isEmpty()) {
+            return null;
+        }
+        
         Map<ContactsManager.Contact, Double> matchScores = new HashMap<>();
         List<ContactsManager.Contact> allContacts = contactsManager.searchContacts("");
         
         partialName = partialName.toLowerCase().trim();
+        
+        // Разбиваем поисковый запрос на части (для поиска по нескольким словам)
+        String[] searchParts = partialName.split("\\s+");
         
         for (ContactsManager.Contact contact : allContacts) {
             // Проверяем через варианты имени
@@ -275,23 +346,30 @@ public class ContactNlpProcessor {
             if (variants.contains(partialName)) {
                 maxScore = 1.0;
             } else {
-                // Проверяем, содержит ли какой-либо вариант частичное имя
+                // Проверяем, содержит ли какой-либо вариант все части поискового запроса
                 for (String variant : variants) {
-                    if (variant.contains(partialName)) {
-                        // Оценка сходства по длине
-                        double score = (double) partialName.length() / variant.length();
-                        maxScore = Math.max(maxScore, score);
-                    }
+                    // Вычисляем оценку для каждого варианта
+                    double variantScore = calculateVariantMatchScore(variant, partialName, searchParts);
+                    maxScore = Math.max(maxScore, variantScore);
                 }
                 
-                // Если не нашли по вхождению, используем расстояние Левенштейна
-                if (maxScore < MIN_SIMILARITY_THRESHOLD) {
-                    for (String variant : variants) {
-                        double score = calculateSimilarity(partialName, variant);
+                // Проверяем, содержит ли номер телефона контакта часть поискового запроса
+                // (для случаев, когда пользователь ищет по номеру)
+                if (maxScore < MIN_SIMILARITY_THRESHOLD && contact.phoneNumber != null) {
+                    String normalizedPhone = contact.phoneNumber.replaceAll("[^0-9]", "");
+                    String normalizedSearch = partialName.replaceAll("[^0-9]", "");
+                    
+                    if (!normalizedSearch.isEmpty() && normalizedPhone.contains(normalizedSearch)) {
+                        double score = 0.7 + (0.3 * normalizedSearch.length() / normalizedPhone.length());
                         maxScore = Math.max(maxScore, score);
                     }
                 }
             }
+            
+            // Учитываем частоту использования для повышения оценки часто используемых контактов
+            int usageCount = contactUsageCount.getOrDefault(contact.name, 0);
+            double usageBonus = Math.min(0.1, usageCount * 0.01); // Максимум +0.1 к оценке
+            maxScore += usageBonus;
             
             // Если нашли достаточно похожий вариант, добавляем в результаты
             if (maxScore >= MIN_SIMILARITY_THRESHOLD) {
@@ -314,6 +392,88 @@ public class ContactNlpProcessor {
         }
         
         return null;
+    }
+    
+    /**
+     * Вычисляет оценку совпадения варианта имени с поисковым запросом
+     */
+    private double calculateVariantMatchScore(String variant, String query, String[] queryParts) {
+        double score = 0;
+        
+        // Проверяем, начинается ли вариант с запроса (высокий приоритет)
+        if (variant.startsWith(query)) {
+            score += 0.8;
+        } 
+        // Проверяем, содержит ли вариант полный запрос
+        else if (variant.contains(query)) {
+            score += 0.6;
+            
+            // Дополнительные баллы, если запрос находится в начале слова
+            String[] variantParts = variant.split("\\s+");
+            for (String part : variantParts) {
+                if (part.startsWith(query)) {
+                    score += 0.1;
+                    break;
+                }
+            }
+        }
+        
+        // Проверяем совпадение отдельных частей запроса
+        int matchedParts = 0;
+        double partMatchScore = 0;
+        
+        for (String part : queryParts) {
+            if (part.length() <= 1) continue; // Пропускаем слишком короткие части
+            
+            if (variant.contains(part)) {
+                matchedParts++;
+                
+                // Вычисляем вес части относительно длины варианта
+                double partWeight = (double) part.length() / variant.length();
+                partMatchScore += partWeight;
+                
+                // Дополнительные баллы, если часть находится в начале слова
+                String[] variantParts = variant.split("\\s+");
+                for (String varPart : variantParts) {
+                    if (varPart.startsWith(part)) {
+                        partMatchScore += 0.1;
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Если все части запроса найдены, добавляем баллы
+        if (matchedParts == queryParts.length && queryParts.length > 0) {
+            score = Math.max(score, 0.7); // Минимальная оценка 0.7, если все части найдены
+            
+            // Добавляем баллы за совпадение частей
+            score += 0.2 * (partMatchScore / queryParts.length);
+        } 
+        // Если найдены не все части, но хотя бы одна
+        else if (matchedParts > 0 && queryParts.length > 0) {
+            double partialScore = 0.5 * ((double) matchedParts / queryParts.length);
+            partialScore += 0.2 * (partMatchScore / queryParts.length);
+            
+            score = Math.max(score, partialScore);
+        }
+        
+        // Если запрос короткий (1-2 символа), снижаем оценку для избежания ложных совпадений
+        if (query.length() <= 2 && score < 0.8) {
+            score *= 0.7;
+        }
+        
+        // Используем расстояние Левенштейна для улучшения оценки при похожих строках
+        if (score < MIN_SIMILARITY_THRESHOLD) {
+            double levenshteinScore = calculateSimilarity(query, variant);
+            
+            // Если строки очень похожи по Левенштейну, повышаем оценку
+            if (levenshteinScore > 0.8) {
+                score = Math.max(score, levenshteinScore - 0.1); // Немного снижаем оценку Левенштейна
+            }
+        }
+        
+        return Math.min(1.0, score); // Максимальная оценка - 1.0
     }
     
     /**
@@ -420,13 +580,17 @@ public class ContactNlpProcessor {
             if (contact != null) {
                 // Увеличиваем счетчик использования
                 incrementContactUsage(contact.name);
+                Log.d("ContactNlpProcessor", "Найден контакт по отношению: " + relation + " -> " + contact.name);
                 return contact;
+            } else {
+                Log.d("ContactNlpProcessor", "Отношение найдено, но контакт не найден: " + relation + " -> " + contactName);
             }
         }
         
         // Если не удалось найти по отношению, ищем по имени с нечетким сопоставлением
         ContactsManager.Contact contact = findContactByPartialNameFuzzy(text);
         if (contact != null) {
+            Log.d("ContactNlpProcessor", "Найден контакт по нечеткому поиску: " + contact.name);
             return contact;
         }
         
@@ -436,9 +600,11 @@ public class ContactNlpProcessor {
             // Сортируем контакты по частоте использования
             sortContactsByUsage(contacts);
             incrementContactUsage(contacts.get(0).name);
+            Log.d("ContactNlpProcessor", "Найден контакт по обычному поиску: " + contacts.get(0).name);
             return contacts.get(0);
         }
         
+        Log.d("ContactNlpProcessor", "Контакт не найден для запроса: " + text);
         return null;
     }
     
@@ -447,6 +613,15 @@ public class ContactNlpProcessor {
      */
     public List<ContactsManager.Contact> findContactsByRelationOrName(String text) {
         List<ContactsManager.Contact> results = new ArrayList<>();
+        
+        if (text == null || text.trim().isEmpty()) {
+            return results;
+        }
+        
+        text = text.toLowerCase().trim();
+        
+        // Проверяем, содержит ли запрос ключевые слова для поиска контакта
+        boolean isContactQuery = containsContactKeywords(text);
         
         // Пытаемся извлечь отношение из текста
         String relation = extractRelationFromText(text);
@@ -459,15 +634,33 @@ public class ContactNlpProcessor {
             if (!contacts.isEmpty()) {
                 // Сортируем контакты по частоте использования
                 sortContactsByUsage(contacts);
+                
+                // Увеличиваем счетчик использования для найденных контактов
+                for (ContactsManager.Contact contact : contacts) {
+                    incrementContactUsage(contact.name);
+                }
+                
                 return contacts;
             }
         }
+        
+        // Извлекаем потенциальное имя из запроса, удаляя ключевые слова
+        String nameQuery = extractNameFromQuery(text);
         
         // Ищем контакты по нечеткому совпадению
         Map<ContactsManager.Contact, Double> matchScores = new HashMap<>();
         List<ContactsManager.Contact> allContacts = contactsManager.searchContacts("");
         
-        String partialName = text.toLowerCase().trim();
+        String partialName = nameQuery.toLowerCase().trim();
+        
+        // Если запрос очень короткий (1-2 символа), требуем более высокую точность совпадения
+        double minThreshold = MIN_SIMILARITY_THRESHOLD;
+        if (partialName.length() <= 2) {
+            minThreshold = 0.85; // Повышаем порог для коротких запросов
+        }
+        
+        // Разбиваем поисковый запрос на части (для поиска по нескольким словам)
+        String[] searchParts = partialName.split("\\s+");
         
         for (ContactsManager.Contact contact : allContacts) {
             // Проверяем через варианты имени
@@ -480,26 +673,73 @@ public class ContactNlpProcessor {
             if (variants.contains(partialName)) {
                 maxScore = 1.0;
             } else {
-                // Проверяем, содержит ли какой-либо вариант частичное имя
+                // Проверяем, содержит ли какой-либо вариант все части поискового запроса
                 for (String variant : variants) {
-                    if (variant.contains(partialName)) {
-                        // Оценка сходства по длине
-                        double score = (double) partialName.length() / variant.length();
+                    boolean allPartsMatch = true;
+                    double partialScore = 0;
+                    
+                    for (String part : searchParts) {
+                        if (!variant.contains(part)) {
+                            allPartsMatch = false;
+                            break;
+                        }
+                        // Добавляем частичную оценку для каждой найденной части
+                        partialScore += (double) part.length() / variant.length();
+                    }
+                    
+                    if (allPartsMatch) {
+                        // Нормализуем оценку по количеству частей
+                        double score = partialScore / searchParts.length;
                         maxScore = Math.max(maxScore, score);
                     }
                 }
                 
+                // Проверяем, содержит ли какой-либо вариант частичное имя
+                if (maxScore < minThreshold) {
+                for (String variant : variants) {
+                    if (variant.contains(partialName)) {
+                        // Оценка сходства по длине
+                        double score = (double) partialName.length() / variant.length();
+                            // Повышаем оценку для совпадений в начале слова
+                            if (variant.startsWith(partialName)) {
+                                score += 0.2;
+                            }
+                        maxScore = Math.max(maxScore, score);
+                        }
+                    }
+                }
+                
                 // Если не нашли по вхождению, используем расстояние Левенштейна
-                if (maxScore < MIN_SIMILARITY_THRESHOLD) {
+                if (maxScore < minThreshold) {
                     for (String variant : variants) {
                         double score = calculateSimilarity(partialName, variant);
+                        // Повышаем оценку для коротких имен, чтобы учесть уменьшительные формы
+                        if (variant.length() <= 5 && score >= 0.6) {
+                            score += 0.1;
+                        }
+                        maxScore = Math.max(maxScore, score);
+                    }
+                }
+                
+                // Проверяем, содержит ли номер телефона контакта часть поискового запроса
+                if (maxScore < minThreshold && contact.phoneNumber != null) {
+                    String normalizedPhone = contact.phoneNumber.replaceAll("[^0-9]", "");
+                    String normalizedSearch = partialName.replaceAll("[^0-9]", "");
+                    
+                    if (!normalizedSearch.isEmpty() && normalizedPhone.contains(normalizedSearch)) {
+                        double score = 0.7 + (0.3 * normalizedSearch.length() / normalizedPhone.length());
                         maxScore = Math.max(maxScore, score);
                     }
                 }
             }
             
+            // Учитываем частоту использования для повышения оценки часто используемых контактов
+            int usageCount = contactUsageCount.getOrDefault(contact.name, 0);
+            double usageBonus = Math.min(0.1, usageCount * 0.01); // Максимум +0.1 к оценке
+            maxScore += usageBonus;
+            
             // Если нашли достаточно похожий вариант, добавляем в результаты
-            if (maxScore >= MIN_SIMILARITY_THRESHOLD) {
+            if (maxScore >= minThreshold) {
                 matchScores.put(contact, maxScore);
             }
         }
@@ -508,13 +748,20 @@ public class ContactNlpProcessor {
         results.addAll(matchScores.keySet());
         
         // Если не нашли по нечеткому поиску, используем обычный поиск
-        if (results.isEmpty()) {
-            results = contactsManager.findContactsByPartialName(text);
+        if (results.isEmpty() && isContactQuery) {
+            results = contactsManager.findContactsByPartialName(nameQuery);
         }
         
         // Сортируем контакты по частоте использования и оценке сходства
         if (!results.isEmpty()) {
             sortContactsByUsageAndSimilarity(results, matchScores);
+            
+            // Увеличиваем счетчик использования для найденных контактов
+            // (но только для первых 3, чтобы не искажать статистику)
+            int count = Math.min(3, results.size());
+            for (int i = 0; i < count; i++) {
+                incrementContactUsage(results.get(i).name);
+            }
         }
         
         return results;
@@ -564,22 +811,98 @@ public class ContactNlpProcessor {
      * Проверяет, содержит ли текст запрос к контакту
      */
     public boolean containsContactRequest(String text) {
+        if (text == null || text.trim().isEmpty()) {
+            return false;
+        }
+        
         text = text.toLowerCase().trim();
+        
+        // Проверяем наличие ключевых слов для поиска контакта
+        if (containsContactKeywords(text)) {
+            return true;
+        }
         
         // Проверяем наличие отношения в тексте
         if (extractRelationFromText(text) != null) {
             return true;
         }
         
+        // Проверяем наличие цифр (возможно, это номер телефона)
+        String digits = text.replaceAll("[^0-9]", "");
+        if (digits.length() >= 4) {  // Если в тексте 4+ цифр, вероятно это номер телефона
+            return true;
+        }
+        
+        // Проверяем наличие команд для звонка или отправки сообщений
+        String[] callCommands = {
+            "позвони", "набери", "звони", "вызов", "звонок", "позвонить", "набрать",
+            "call", "dial", "phone"
+        };
+        
+        String[] messageCommands = {
+            "напиши", "сообщение", "отправь", "смс", "написать", "отправить",
+            "text", "message", "sms", "send"
+        };
+        
+        // Проверяем команды звонка
+        for (String cmd : callCommands) {
+            if (text.contains(cmd)) {
         // Проверяем нечеткое совпадение с именами контактов
         ContactsManager.Contact contact = findContactByPartialNameFuzzy(text);
         if (contact != null) {
+                    return true;
+                }
+                
+                // Если команда звонка находится в начале текста, скорее всего это запрос к контакту
+                if (text.startsWith(cmd) || text.startsWith("please " + cmd) || 
+                    text.startsWith("пожалуйста " + cmd)) {
+                    return true;
+                }
+            }
+        }
+        
+        // Проверяем команды сообщений
+        for (String cmd : messageCommands) {
+            if (text.contains(cmd)) {
+                // Проверяем нечеткое совпадение с именами контактов
+                ContactsManager.Contact contact = findContactByPartialNameFuzzy(text);
+                if (contact != null) {
+                    return true;
+                }
+                
+                // Если команда сообщения находится в начале текста, скорее всего это запрос к контакту
+                if (text.startsWith(cmd) || text.startsWith("please " + cmd) || 
+                    text.startsWith("пожалуйста " + cmd)) {
+                    return true;
+                }
+            }
+        }
+        
+        // Проверяем нечеткое совпадение с именами контактов
+        ContactsManager.Contact contact = findContactByPartialNameFuzzy(text);
+        if (contact != null) {
+            // Если нашли контакт с высокой степенью уверенности (> 0.8), считаем это запросом к контакту
             return true;
         }
         
         // Ищем контакты по имени
         List<ContactsManager.Contact> contacts = contactsManager.findContactsByPartialName(text);
-        return !contacts.isEmpty();
+        if (!contacts.isEmpty()) {
+            // Если нашли точное совпадение, считаем это запросом к контакту
+            return true;
+        }
+        
+        // Проверяем, является ли текст коротким (1-2 слова) и содержит ли он имя
+        String[] words = text.split("\\s+");
+        if (words.length <= 2) {
+            // Проверяем, похож ли текст на имя (начинается с заглавной буквы)
+            String originalText = text.trim();
+            if (!originalText.isEmpty() && Character.isUpperCase(originalText.charAt(0))) {
+                return true;
+            }
+        }
+        
+        return false;
     }
     
     /**
@@ -589,6 +912,43 @@ public class ContactNlpProcessor {
         if (!relationToContactMap.containsKey(relation.toLowerCase())) {
             addRelationMapping(relation, contactName);
         }
+    }
+    
+    /**
+     * Проверяет, содержит ли запрос ключевые слова для поиска контакта
+     */
+    private boolean containsContactKeywords(String text) {
+        String[] keywords = {
+            "контакт", "найти", "позвонить", "набрать", "телефон", "номер", 
+            "связаться", "написать", "отправить", "сообщение", "звонок", "вызов"
+        };
+        
+        for (String keyword : keywords) {
+            if (text.contains(keyword)) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Извлекает имя контакта из запроса, удаляя ключевые слова
+     */
+    private String extractNameFromQuery(String text) {
+        // Удаляем распространенные фразы для поиска контактов
+        String[] phrasesToRemove = {
+            "найти контакт", "найти номер", "позвонить", "набрать номер", 
+            "найти", "телефон", "контакт", "номер телефона", "связаться с", 
+            "написать", "отправить сообщение", "сообщение для"
+        };
+        
+        String result = text;
+        for (String phrase : phrasesToRemove) {
+            result = result.replace(phrase, "");
+        }
+        
+        return result.trim();
     }
     
     /**

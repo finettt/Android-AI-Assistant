@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Стили для кнопок в светлой теме -->
+    <style name="WhiteBorderedButton" parent="Widget.MaterialComponents.Button">
+        <item name="android:textColor">@color/white</item>
+        <item name="backgroundTint">@color/primary_light</item>
+        <item name="strokeColor">@color/primary_light</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="rippleColor">@color/primary_light</item>
+    </style>
+    
+    <style name="WhiteBorderedOutlinedButton" parent="Widget.MaterialComponents.Button.OutlinedButton">
+        <item name="android:textColor">@color/primary_light</item>
+        <item name="strokeColor">@color/primary_light</item>
+        <item name="strokeWidth">1dp</item>
+        <item name="rippleColor">@color/primary_light</item>
+    </style>
+    
+    <style name="WhiteBorderedTextButton" parent="Widget.MaterialComponents.Button.TextButton">
+        <item name="android:textColor">@color/primary_light</item>
+        <item name="rippleColor">@color/primary_light</item>
+    </style>
+    
+    <!-- Стиль для FAB в светлой теме -->
+    <style name="Alan.FloatingActionButton.Light" parent="Widget.MaterialComponents.FloatingActionButton">
+        <item name="backgroundTint">@color/primary_light</item>
+        <item name="tint">@color/white</item>
+        <item name="rippleColor">@color/white</item>
+        <item name="borderWidth">0dp</item>
+    </style>
+    
+    <!-- Стили для полей ввода в светлой теме -->
+    <style name="Alan.TextInputLayout" parent="Widget.MaterialComponents.TextInputLayout.FilledBox">
+        <item name="boxStrokeColor">@color/primary_light</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="endIconTint">@color/primary_light</item>
+        <item name="startIconTint">@color/primary_light</item>
+    </style>
+    
+    <style name="Alan.TextInputLayout.OutlinedBox" parent="Widget.MaterialComponents.TextInputLayout.OutlinedBox">
+        <item name="boxStrokeColor">@color/primary_light</item>
+        <item name="boxStrokeWidth">1dp</item>
+        <item name="hintTextColor">@color/primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
+        <item name="endIconTint">@color/primary_light</item>
+        <item name="startIconTint">@color/primary_light</item>
+    </style>
+    
+    <style name="Alan.EditText" parent="Widget.AppCompat.EditText">
+        <item name="android:textColor">@color/text_primary_light</item>
+        <item name="android:textColorHint">@color/text_secondary_light</item>
+        <item name="android:backgroundTint">@color/primary_light</item>
+        <item name="colorControlActivated">@color/primary_light</item>
+        <item name="colorControlNormal">@color/primary_light</item>
+    </style>
+
+    <!-- Стили для сообщений в чате в светлой теме -->
+    <style name="ChatMessage.Assistant" parent="ChatMessage">
+        <item name="android:layout_marginStart">8dp</item>
+        <item name="android:layout_marginEnd">48dp</item>
+        <item name="android:background">@drawable/bg_message_assistant</item>
+        <item name="android:textColor">@color/message_ai_text_light</item>
+    </style>
+
+    <style name="ChatMessage.User" parent="ChatMessage">
+        <item name="android:layout_marginStart">48dp</item>
+        <item name="android:layout_marginEnd">8dp</item>
+        <item name="android:background">@drawable/bg_message_user</item>
+        <item name="android:textColor">@color/message_user_text_light</item>
+    </style>
+</resources> 
