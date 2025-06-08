@@ -21,29 +21,29 @@ public class VoiceRecognitionService extends RecognitionService {
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "Служба распознавания речи создана");
+        Log.d(TAG, "Voice recognition service created");
         
         // Инициализируем распознаватель речи
         try {
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
             speechRecognizer.setRecognitionListener(new InternalRecognitionListener());
         } catch (Exception e) {
-            Log.e(TAG, "Ошибка при создании распознавателя речи", e);
+            Log.e(TAG, "Error creating speech recognizer", e);
         }
     }
 
     @Override
     protected void onStartListening(Intent recognizerIntent, Callback callback) {
-        Log.d(TAG, "Начало прослушивания в службе распознавания речи");
+        Log.d(TAG, "Start listening in recognition service");
         
         mCurrentCallback = callback;
         
         if (speechRecognizer == null) {
-            Log.e(TAG, "SpeechRecognizer не инициализирован");
+            Log.e(TAG, "SpeechRecognizer not initialized");
             try {
                 callback.error(SpeechRecognizer.ERROR_CLIENT);
             } catch (RemoteException e) {
-                Log.e(TAG, "Ошибка при отправке кода ошибки", e);
+                Log.e(TAG, "Error sending error code", e);
             }
             return;
         }
@@ -64,18 +64,18 @@ public class VoiceRecognitionService extends RecognitionService {
             // Запускаем распознавание
             speechRecognizer.startListening(intent);
         } catch (Exception e) {
-            Log.e(TAG, "Ошибка при запуске распознавания: " + e.getMessage(), e);
+            Log.e(TAG, "Error starting recognition: " + e.getMessage(), e);
             try {
                 callback.error(SpeechRecognizer.ERROR_CLIENT);
             } catch (RemoteException re) {
-                Log.e(TAG, "Ошибка при отправке кода ошибки", re);
+                Log.e(TAG, "Error sending error code", re);
             }
         }
     }
 
     @Override
     protected void onCancel(Callback callback) {
-        Log.d(TAG, "Отмена распознавания речи");
+        Log.d(TAG, "Recognition cancelled");
         if (speechRecognizer != null) {
             speechRecognizer.cancel();
         }
@@ -83,13 +83,13 @@ public class VoiceRecognitionService extends RecognitionService {
         try {
             callback.error(SpeechRecognizer.ERROR_CLIENT);
         } catch (RemoteException e) {
-            Log.e(TAG, "Ошибка при отправке сигнала отмены", e);
+            Log.e(TAG, "Error sending cancel signal", e);
         }
     }
 
     @Override
     protected void onStopListening(Callback callback) {
-        Log.d(TAG, "Остановка прослушивания");
+        Log.d(TAG, "Stop listening");
         if (speechRecognizer != null) {
             speechRecognizer.stopListening();
         }
@@ -97,7 +97,7 @@ public class VoiceRecognitionService extends RecognitionService {
         try {
             callback.endOfSpeech();
         } catch (RemoteException e) {
-            Log.e(TAG, "Ошибка при отправке сигнала окончания речи", e);
+            Log.e(TAG, "Error sending end of speech signal", e);
         }
     }
 
@@ -108,7 +108,7 @@ public class VoiceRecognitionService extends RecognitionService {
             speechRecognizer = null;
         }
         super.onDestroy();
-        Log.d(TAG, "Служба распознавания речи уничтожена");
+        Log.d(TAG, "Voice recognition service destroyed");
     }
     
     /**
@@ -117,24 +117,24 @@ public class VoiceRecognitionService extends RecognitionService {
     private class InternalRecognitionListener implements RecognitionListener {
         @Override
         public void onReadyForSpeech(Bundle params) {
-            Log.d(TAG, "Готов к распознаванию речи");
+            Log.d(TAG, "Ready for speech");
             if (mCurrentCallback != null) {
                 try {
                     mCurrentCallback.readyForSpeech(params);
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке сигнала готовности", e);
+                    Log.e(TAG, "Error sending ready signal", e);
                 }
             }
         }
 
         @Override
         public void onBeginningOfSpeech() {
-            Log.d(TAG, "Начало речи");
+            Log.d(TAG, "Speech beginning");
             if (mCurrentCallback != null) {
                 try {
                     mCurrentCallback.beginningOfSpeech();
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке сигнала начала речи", e);
+                    Log.e(TAG, "Error sending beginning of speech signal", e);
                 }
             }
         }
@@ -145,7 +145,7 @@ public class VoiceRecognitionService extends RecognitionService {
                 try {
                     mCurrentCallback.rmsChanged(rmsdB);
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке изменения RMS", e);
+                    Log.e(TAG, "Error sending RMS change", e);
                 }
             }
         }
@@ -156,43 +156,43 @@ public class VoiceRecognitionService extends RecognitionService {
                 try {
                     mCurrentCallback.bufferReceived(buffer);
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке буфера", e);
+                    Log.e(TAG, "Error sending buffer", e);
                 }
             }
         }
 
         @Override
         public void onEndOfSpeech() {
-            Log.d(TAG, "Конец речи");
+            Log.d(TAG, "End of speech");
             if (mCurrentCallback != null) {
                 try {
                     mCurrentCallback.endOfSpeech();
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке сигнала окончания речи", e);
+                    Log.e(TAG, "Error sending end of speech signal", e);
                 }
             }
         }
 
         @Override
         public void onError(int error) {
-            Log.d(TAG, "Ошибка распознавания: " + error);
+            Log.d(TAG, "Recognition error: " + error);
             if (mCurrentCallback != null) {
                 try {
                     mCurrentCallback.error(error);
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке кода ошибки", e);
+                    Log.e(TAG, "Error sending error code", e);
                 }
             }
         }
 
         @Override
         public void onResults(Bundle results) {
-            Log.d(TAG, "Получены результаты распознавания");
+            Log.d(TAG, "Recognition results received");
             if (mCurrentCallback != null) {
                 try {
                     mCurrentCallback.results(results);
                 } catch (RemoteException e) {
-                    Log.e(TAG, "Ошибка при отправке результатов", e);
+                    Log.e(TAG, "Error sending results", e);
                 }
             }
         }

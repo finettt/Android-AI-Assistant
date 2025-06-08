@@ -15,7 +15,7 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
     @Override
     public void onCreate() {
         super.onCreate();
-        Log.d(TAG, "Служба голосового взаимодействия создана");
+        Log.d(TAG, "Voice interaction service created");
         
         // При создании службы пробуем запустить ассистента, это может помочь при системном вызове
         startAssistantDirectly();
@@ -24,7 +24,7 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
     @Override
     public void onReady() {
         super.onReady();
-        Log.d(TAG, "Служба голосового взаимодействия готова");
+        Log.d(TAG, "Voice interaction service ready");
         
         // Пробуем запустить ассистента и когда служба готова
         startAssistantDirectly();
@@ -32,7 +32,7 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
-        Log.d(TAG, "Получен запрос на запуск службы голосового взаимодействия");
+        Log.d(TAG, "Voice interaction service start command received");
         
         // При запуске через startService также пробуем запустить ассистента
         startAssistantDirectly();
@@ -42,7 +42,7 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
     
     @Override
     public IBinder onBind(Intent intent) {
-        Log.d(TAG, "onBind вызван с интентом: " + intent);
+        Log.d(TAG, "onBind called with intent: " + intent);
         return super.onBind(intent);
     }
     
@@ -51,19 +51,19 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
      */
     private void startAssistantDirectly() {
         try {
-            Log.d(TAG, "Пытаемся запустить SystemAssistantActivity напрямую из VoiceInteractionService");
+            Log.d(TAG, "Trying to launch SystemAssistantActivity directly from VoiceInteractionService");
             
             // Используем новый класс AssistantLauncher для запуска системного ассистента
             AssistantLauncher.launchSystemAssistantActivity(this);
         } catch (Exception e) {
-            Log.e(TAG, "Ошибка при прямом запуске SystemAssistantActivity", e);
+            Log.e(TAG, "Error launching SystemAssistantActivity", e);
             
             // Если не удалось запустить SystemAssistantActivity, пробуем запустить обычную AssistantActivity
             try {
-                Log.d(TAG, "Пробуем запустить обычную AssistantActivity как резервный вариант");
+                Log.d(TAG, "Trying to launch regular AssistantActivity as fallback");
                 AssistantLauncher.launchAssistant(this);
             } catch (Exception ex) {
-                Log.e(TAG, "Не удалось запустить даже обычную AssistantActivity", ex);
+                Log.e(TAG, "Failed to launch even regular AssistantActivity", ex);
             }
         }
     }
@@ -71,6 +71,6 @@ public class VoiceInteractionService extends android.service.voice.VoiceInteract
     @Override
     public void onShutdown() {
         super.onShutdown();
-        Log.d(TAG, "Служба голосового взаимодействия завершена");
+        Log.d(TAG, "Voice interaction service shutdown");
     }
 } 

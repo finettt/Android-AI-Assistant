@@ -150,22 +150,20 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         // Verify all required permissions are granted
         if (!checkRequiredPermissions()) {
-            // If permissions are missing, redirect to permission activity
             startActivity(new Intent(this, PermissionRequestActivity.class));
             finish();
             return;
         }
         
-        // Проверяем разрешение на доступ к контактам
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
             ActivityCompat.requestPermissions(
                 this,
                 new String[]{Manifest.permission.READ_CONTACTS},
                 103 // ContactsManager.PERMISSION_REQUEST_CONTACTS
             );
-            Log.d("MainActivity", "Запрашиваем разрешение на доступ к контактам");
+            Log.d("MainActivity", "Requesting contacts permission");
         } else {
-            Log.d("MainActivity", "Разрешение на доступ к контактам уже предоставлено");
+            Log.d("MainActivity", "Contacts permission already granted");
         }
         
         setupToolbar();

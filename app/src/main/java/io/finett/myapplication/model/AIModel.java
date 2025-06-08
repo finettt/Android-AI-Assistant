@@ -24,7 +24,7 @@ public class AIModel {
         this.description = description;
         this.isRecommended = false;
     }
-    
+
     public AIModel(String name, String id, boolean isRecommended) {
         this.name = name;
         this.id = id;
@@ -43,7 +43,7 @@ public class AIModel {
     public String getDescription() {
         return description;
     }
-    
+
     public boolean isRecommended() {
         return isRecommended;
     }
@@ -52,4 +52,4 @@ public class AIModel {
     public String toString() {
         return name + (isRecommended ? " (рекомендуется)" : "");
     }
-} 
+}

@@ -44,7 +44,7 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ChatViewHold
         holder.titleText.setText(chat.getTitle());
         holder.modelText.setText(chat.getModelId());
         holder.dateText.setText(dateFormat.format(new Date(chat.getTimestamp())));
-        
+
         holder.itemView.setOnClickListener(v -> {
             if (listener != null) {
                 listener.onChatClick(chat);
@@ -79,4 +79,4 @@ public class ChatsAdapter extends RecyclerView.Adapter<ChatsAdapter.ChatViewHold
             dateText = itemView.findViewById(R.id.chatDate);
         }
     }
-} 
+}

@@ -27,7 +27,7 @@ public class ChatMessage implements Parcelable {
         } else {
             this.text = text;
         }
-        this.displayText = this.text; // Изначально отображаемый текст равен оригинальному
+        this.displayText = this.text;
         this.isUserMessage = isUserMessage;
         this.timestamp = new Date().getTime();
         this.attachmentType = AttachmentType.NONE;
@@ -103,7 +103,7 @@ public class ChatMessage implements Parcelable {
         } else {
             this.text = text;
         }
-        this.displayText = this.text; // Обновляем и отображаемый текст
+        this.displayText = this.text;
         this.isEdited = true;
     }
 

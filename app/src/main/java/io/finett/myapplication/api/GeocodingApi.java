@@ -6,7 +6,7 @@ import retrofit2.http.GET;
 import retrofit2.http.Query;
 
 public interface GeocodingApi {
-    // Open-Meteo Geocoding API
+
     @GET("v1/search")
     Call<GeocodingResponse> searchLocation(
             @Query("name") String cityName,
@@ -14,4 +14,4 @@ public interface GeocodingApi {
             @Query("language") String language,
             @Query("format") String format
     );
-} 
+}

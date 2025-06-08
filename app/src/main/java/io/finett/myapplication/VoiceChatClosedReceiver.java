@@ -16,10 +16,10 @@ public class VoiceChatClosedReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         String action = intent.getAction();
-        Log.d(TAG, "Получен сигнал: " + action);
+        Log.d(TAG, "Received signal: " + action);
 
         if (ACTION_VOICE_CHAT_CLOSED.equals(action)) {
-            Log.d(TAG, "VoiceChatActivity закрыта, восстанавливаем службу распознавания wake-фразы");
+            Log.d(TAG, "VoiceChatActivity closed, restarting wake-word service");
             
             // Запускаем сервис для восстановления прослушивания
             Intent serviceIntent = new Intent(context, VoiceActivationService.class);
