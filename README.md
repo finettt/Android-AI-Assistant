@@ -70,13 +70,13 @@ Key technologies include:
 
 Before building the project, you need to set up API keys:
 
-1. Run the setup script:
-   - Windows: `setup-dev.bat`
-   - Linux/MacOS: `./setup-dev.sh`
+1. Create a `secrets.properties` file with this template for API keys.
+```properties
+WEATHER_API_KEY=your_weather_api_key_here 
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+``` 
 
-2. The script will create a `secrets.properties` file with templates for API keys.
-
-3. Edit the created file, specifying your real API keys.
+3. Edit the created file, specifying your real API keys. You can use my demo key `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` for testing
 
 ### Via Android Studio
 1. Clone the repository:
