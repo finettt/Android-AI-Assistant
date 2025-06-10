@@ -2,6 +2,11 @@
 
 An intelligent voice assistant for Android with advanced camera capabilities and accessibility features. The application provides a convenient interface for voice control of your device, making calls, sending messages, and analyzing images.
 # You can download app there: https://drive.google.com/file/d/1dmeMGZDXBe73p29paaCYlozbJIBfDeQg/view?usp=sharing
+
+# Disclaimer!
+
+#### Now there are difficulties with access to models; if you have problems, you should either wait a while or independently change the models in the code to those that work for you
+
 ## Features
 
 ### 🎤 Voice Control
