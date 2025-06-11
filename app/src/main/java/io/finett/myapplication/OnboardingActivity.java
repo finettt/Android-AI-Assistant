@@ -99,74 +99,12 @@ public class OnboardingActivity extends AppCompatActivity {
         dialog.show();
     }
     
-    private void showApiKeyDialog() {
-        showApiKeyDialog("Пользователь");
-    }
-    
     private void showApiKeyDialog(final String userName) {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Введите API ключ");
-        builder.setMessage("Для работы с OpenRouter API необходим ключ. Вы можете получить его на сайте openrouter.ai");
-        
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT);
-        builder.setView(input);
-        
-        builder.setPositiveButton("Сохранить", new DialogInterface.OnClickListener() { 
-            @Override
-            public void onClick(DialogInterface dialog, int which) {
-                String apiKey = input.getText().toString().trim();
-                if (!apiKey.isEmpty()) {
-                    // Сохраняем API ключ только если не используем хардкодный ключ из BuildConfig
-                    if (!BuildConfig.USE_HARDCODED_KEY) {
-                        SharedPreferences prefs = getSharedPreferences(API_PREFS, MODE_PRIVATE);
-                        prefs.edit().putString(API_KEY, apiKey).apply();
-                        
-                        // Также сохраняем в общем хранилище для совместимости
-                        SharedPreferences mainPrefs = getSharedPreferences(MainActivity.PREFS_NAME, MODE_PRIVATE);
-                        mainPrefs.edit().putString(MainActivity.API_KEY_PREF, apiKey).apply();
-                        
-                        Log.d("OnboardingActivity", "Сохранен пользовательский API ключ");
-                    } else {
-                        Log.d("OnboardingActivity", "Используется встроенный API ключ OpenRouter из BuildConfig, пользовательский игнорируется");
-                    }
-                    
-                    // Сохраняем, что пользователь уже видел онбординг
-                    markOnboardingAsShown();
-                    
-                    // Переходим в основное приложение
-                    startMainActivity();
-                }
-            }
-        });
-        
-        // Если используем хардкодный ключ, добавляем возможность пропустить ввод ключа
-        if (BuildConfig.USE_HARDCODED_KEY) {
-            builder.setNeutralButton("Использовать встроенный ключ", new DialogInterface.OnClickListener() {
-                @Override
-                public void onClick(DialogInterface dialog, int which) {
-                    Log.d("OnboardingActivity", "Выбрано использование встроенного API ключа OpenRouter из BuildConfig");
-                    
-                    // Сохраняем, что пользователь уже видел онбординг
-                    markOnboardingAsShown();
-                    
-                    // Переходим в основное приложение
-                    startMainActivity();
-                }
-            });
-        }
-        
-        builder.setCancelable(false);
-        
-        AlertDialog dialog = builder.create();
-        dialog.setOnShowListener(new DialogInterface.OnShowListener() {
-            @Override
-            public void onShow(DialogInterface dialogInterface) {
-                dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
-                dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(getResources().getColor(R.color.white));
-            }
-        });
-        dialog.show();
+        // Диалог ввода API ключа отключен – приложение использует встроенный ключ.
+        android.util.Log.i("OnboardingActivity", "API-key dialog suppressed – using embedded key");
+        // Отмечаем, что онбординг был показан, и переходим к основной активности.
+        markOnboardingAsShown();
+        startMainActivity();
     }
 
     private void markOnboardingAsShown() {

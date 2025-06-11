@@ -86,6 +86,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import okhttp3.ResponseBody;
+import android.speech.tts.TextToSpeech;
+import io.finett.myapplication.util.CommandProcessor;
+import androidx.annotation.Nullable;
 
 public class MainActivity extends BaseAccessibilityActivity implements 
         ChatsAdapter.OnChatClickListener, 
@@ -102,11 +105,11 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private Uri currentPhotoUri;
     private static final int PERMISSION_REQUEST_CODE = 123;
     private List<AIModel> availableModels = Arrays.asList(
+            new AIModel("Qwen 3 235B", "qwen/qwen3-235b-a22b:free", true),
             new AIModel("Claude 3 Haiku", "anthropic/claude-3-haiku-20240307", false),
             new AIModel("Claude 3 Sonnet", "anthropic/claude-3-sonnet-20240229", false),
             new AIModel("Gemini Pro", "google/gemini-pro", true),
             new AIModel("Qwen2.5 VL 32B Instruct", "qwen/qwen2.5-vl-32b-instruct:free", false),
-            new AIModel("Qwen 3 235B", "qwen/qwen3-235b-a22b:free", true),
             new AIModel("Mistral 7B", "mistralai/mistral-7b-instruct-v0.1", false),
             new AIModel("Mixtral 8x7B", "mistralai/mixtral-8x7b-instruct-v0.1", false),
             new AIModel("QwQ 32B RpR v1", "arliai/qwq-32b-arliai-rpr-v1:free", false),
@@ -121,6 +124,10 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private HorizontalScrollView suggestionsScrollView;
     private ChipGroup suggestionsChipGroup;
     private SuggestionGenerator suggestionGenerator;
+
+    // === Командный процессор и TTS для системных команд (звонки, карты, SMS и др.) ===
+    private CommandProcessor commandProcessor;
+    private TextToSpeech textToSpeech;
 
     private final ActivityResultLauncher<String> filePickerLauncher = registerForActivityResult(
             new ActivityResultContracts.GetContent(),
@@ -138,9 +145,37 @@ public class MainActivity extends BaseAccessibilityActivity implements
                 }
             });
 
+    // Add launcher for speech recognition results
+    private final androidx.activity.result.ActivityResultLauncher<android.content.Intent> speechLauncher = registerForActivityResult(
+            new androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                    java.util.ArrayList<String> matches = result.getData().getStringArrayListExtra(android.speech.RecognizerIntent.EXTRA_RESULTS);
+                    if (matches != null && !matches.isEmpty()) {
+                        binding.messageInput.setText(matches.get(0));
+                        sendMessage();
+                    }
+                }
+            });
+
+    // Speech recognizer for inline voice input
+    private android.speech.SpeechRecognizer speechRecognizer;
+    private boolean isListening = false;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        // Проверяем, были ли уже запрошены разрешения один раз
+        SharedPreferences prefsStartup = getSharedPreferences("AlanPrefs", MODE_PRIVATE);
+        boolean permissionsAsked = prefsStartup.getBoolean("permissions_requested", false);
+        if (!permissionsAsked) {
+            // Запускаем экран запроса разрешений и завершаем эту Activity
+            startActivity(new Intent(this, PermissionRequestActivity.class));
+            finish();
+            return;
+        }
+
         binding = ActivityMainBinding.inflate(getLayoutInflater());
         setContentView(binding.getRoot());
 
@@ -148,29 +183,15 @@ public class MainActivity extends BaseAccessibilityActivity implements
         accessibilityManager = new AccessibilityManager(this, null);
         userManager = new UserManager(this);
         
-        // Verify all required permissions are granted
-        if (!checkRequiredPermissions()) {
-            startActivity(new Intent(this, PermissionRequestActivity.class));
-            finish();
-            return;
-        }
-        
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED) {
-            ActivityCompat.requestPermissions(
-                this,
-                new String[]{Manifest.permission.READ_CONTACTS},
-                103 // ContactsManager.PERMISSION_REQUEST_CONTACTS
-            );
-            Log.d("MainActivity", "Requesting contacts permission");
-        } else {
-            Log.d("MainActivity", "Contacts permission already granted");
-        }
+        // Проверяем критические разрешения, но не перенаправляем пользователя.
+        // Функционал, требующий их, будет отключён до выдачи.
         
         setupToolbar();
         setupRecyclerViews();
         setupNewChatButton();
         setupMessageInput();
         setupAttachButton();
+        setupMicButton();
         loadSavedChats();
         setupApi();
         setupSettingsReceiver();
@@ -211,11 +232,52 @@ public class MainActivity extends BaseAccessibilityActivity implements
             Log.d("MainActivity", "Получен callback с подсказками: " + suggestions.size());
             runOnUiThread(() -> updateSuggestionsUI(suggestions));
         });
+
+        // Инициализируем Text-to-Speech (используется CommandProcessor для голосового подтверждения)
+        textToSpeech = new TextToSpeech(this, status -> {
+            /* nothing special */
+        });
+
+        // Создаём CommandProcessor, который умеет выполнять системные действия
+        commandProcessor = new CommandProcessor(
+                this,
+                textToSpeech,
+                // Обработчик результатов анализа изображения с камеры
+                result -> {
+                    ChatMessage bot = new ChatMessage(result, false);
+                    chatAdapter.addMessage(bot);
+                    if (currentChat != null) currentChat.addMessage(bot);
+                },
+                // Обработчик завершённых системных команд (для истории чата)
+                (command, response) -> {
+                    // Не добавляем техническое сообщение "step_by_step" в историю.
+                    if (command != null && !"step_by_step".equals(command)) {
+                        ChatMessage userMsg = new ChatMessage(command, true);
+                        chatAdapter.addMessage(userMsg);
+                        if (currentChat != null) {
+                            currentChat.addMessage(userMsg);
+                        }
+                    }
+
+                    if (response != null && !response.trim().isEmpty()) {
+                        ChatMessage botMsg = new ChatMessage(response, false);
+                        chatAdapter.addMessage(botMsg);
+                        if (currentChat != null) {
+                            currentChat.addMessage(botMsg);
+                        }
+                    }
+
+                    if (currentChat != null) {
+                        saveChats();
+                    }
+                }
+        );
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        updatePermissionDependentButtons();
     }
 
     private boolean checkRequiredPermissions() {
@@ -288,11 +350,6 @@ public class MainActivity extends BaseAccessibilityActivity implements
 
     private void setupNewChatButton() {
         binding.newChatButton.setOnClickListener(v -> showNewChatDialog());
-        binding.voiceChatButton.setOnClickListener(v -> {
-            Intent intent = new Intent(this, VoiceChatActivity.class);
-            startActivity(intent);
-            binding.drawerLayout.close();
-        });
         binding.accessibilitySettingsButton.setOnClickListener(v -> {
             Intent intent = new Intent(this, AccessibilitySettingsActivity.class);
             startActivity(intent);
@@ -390,43 +447,8 @@ public class MainActivity extends BaseAccessibilityActivity implements
     }
 
     private void showApiKeyDialog() {
-        TextInputLayout inputLayout = new TextInputLayout(this);
-        TextInputEditText input = new TextInputEditText(this);
-        input.setHint("Введите API ключ OpenRouter");
-        inputLayout.addView(input);
-        inputLayout.setPadding(32, 16, 32, 0);
-
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this)
-                .setTitle("API Ключ")
-                .setMessage("Пожалуйста, введите ваш API ключ OpenRouter")
-                .setView(inputLayout)
-                .setCancelable(false)
-                .setPositiveButton("Сохранить", (dialog, which) -> {
-                    String key = input.getText().toString().trim();
-                    if (!key.isEmpty()) {
-                        saveApiKey(key);
-                    } else {
-                        showApiKeyDialog();
-                    }
-                });
-                
-        AlertDialog dialog = builder.create();
-        dialog.setOnShowListener(dialogInterface -> {
-            dialog.getButton(AlertDialog.BUTTON_POSITIVE).setTextColor(getResources().getColor(R.color.white));
-            dialog.getButton(AlertDialog.BUTTON_NEGATIVE).setTextColor(getResources().getColor(R.color.white));
-            dialog.getButton(AlertDialog.BUTTON_NEUTRAL).setTextColor(getResources().getColor(R.color.white));
-        });
-        dialog.show();
-    }
-
-    private void saveApiKey(String key) {
-        // Сохраняем ключ только если не используем хардкодный ключ из BuildConfig
-        if (!BuildConfig.USE_HARDCODED_KEY) {
-            SharedPreferences.Editor editor = getSharedPreferences(PREFS_NAME, MODE_PRIVATE).edit();
-            editor.putString(API_KEY_PREF, key);
-            editor.apply();
-        }
-        apiKey = key;
+        // Диалог ввода API ключа отключен – приложение использует встроенный ключ.
+        android.util.Log.i("MainActivity", "API-key dialog suppressed – using embedded key");
     }
 
     private void setupMessageInput() {
@@ -450,19 +472,41 @@ public class MainActivity extends BaseAccessibilityActivity implements
             return;
         }
 
-        // Очищаем поле ввода
-        binding.messageInput.setText("");
+        // Сначала проверяем: это системная команда?
+        if (commandProcessor != null && commandProcessor.isCommand(message)) {
+            // Убеждаемся, что есть активный чат для сохранения истории
+            if (currentChat == null) {
+                createNewChat("Новый чат", availableModels.get(0).getId());
+            }
 
-        // Если текущий чат не выбран, создаем новый
+            String response = commandProcessor.processCommand(message);
+            if (response != null) {
+                // Добавляем пару сообщений (пользователь / ассистент)
+                ChatMessage userMsg = new ChatMessage(message, true);
+                ChatMessage botMsg = new ChatMessage(response, false);
+                chatAdapter.addMessage(userMsg);
+                chatAdapter.addMessage(botMsg);
+                currentChat.addMessage(userMsg);
+                currentChat.addMessage(botMsg);
+                saveChats();
+            }
+
+            // Очищаем поле ввода и прекращаем дальнейший API-запрос
+            binding.messageInput.setText("");
+            return;
+        }
+
+        // Создаем новый чат, если ещё не выбран
         if (currentChat == null) {
             createNewChat("Новый чат", availableModels.get(0).getId());
         }
 
-        // Добавляем сообщение пользователя
+        // Добавляем сообщение пользователя (не является системной командой)
         ChatMessage userMessage = new ChatMessage(message, true);
         chatAdapter.addMessage(userMessage);
         currentChat.addMessage(userMessage);
         saveChats();
+        binding.messageInput.setText("");
         
         // Показываем индикатор загрузки
         chatAdapter.setLoading(true);
@@ -526,31 +570,37 @@ public class MainActivity extends BaseAccessibilityActivity implements
         
         body.put("messages", messages);
 
-        // Используем API для получения ответа (без стриминга)
+        performChatRequest(body, 1);
+    }
+
+    /**
+     * Выполняет запрос к OpenRouter с простой стратегией повторной попытки (до 2 раз).
+     */
+    private void performChatRequest(Map<String, Object> body, int attempt) {
         Call<Map<String, Object>> call = openRouterApi.getChatCompletion(
                 "Bearer " + apiKey,
                 "https://github.com/your-username/your-repo",
                 "Android Chat App",
-                body
-        );
-        
+                body);
+
+        int nextAttempt = attempt + 1;
+
         call.enqueue(new Callback<Map<String, Object>>() {
             @Override
             public void onResponse(Call<Map<String, Object>> call, Response<Map<String, Object>> response) {
                 if (!response.isSuccessful()) {
+                    if (nextAttempt <= 2) {
+                        Log.w("MainActivity", "API error " + response.code() + ", повтор " + nextAttempt);
+                        performChatRequest(body, nextAttempt);
+                        return;
+                    }
                     runOnUiThread(() -> {
                         chatAdapter.setLoading(false);
                         try {
                             String errorBody = response.errorBody() != null ? response.errorBody().string() : "Ошибка сервера";
                             showError("Ошибка API: " + response.code() + " " + errorBody);
-                            
-                            if (response.code() == 401) {
-                                apiKey = null;
-                                showApiKeyDialog();
-                            }
-                        } catch (Exception e) {
-                            showError("Ошибка при обработке ответа сервера: " + e.getMessage());
-                        }
+                            if (response.code() == 401) { apiKey = null; showApiKeyDialog(); }
+                        } catch (Exception e) { showError("Ошибка: " + e.getMessage()); }
                     });
                     return;
                 }
@@ -751,8 +801,10 @@ public class MainActivity extends BaseAccessibilityActivity implements
     private void checkCameraPermissionAndLaunch() {
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA)
                 != PackageManager.PERMISSION_GRANTED) {
-            // Вместо запроса разрешения напрямую, перенаправляем на экран разрешений
-            startActivity(new Intent(this, PermissionRequestActivity.class));
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.CAMERA},
+                    PERMISSION_REQUEST_CODE);
         } else {
             launchCamera();
         }
@@ -1136,6 +1188,20 @@ public class MainActivity extends BaseAccessibilityActivity implements
         super.onDestroy();
         if (settingsReceiver != null) {
             unregisterReceiver(settingsReceiver);
+        }
+        if (speechRecognizer != null) {
+            speechRecognizer.destroy();
+        }
+
+        // Освобождаем ресурсы CommandProcessor/TTS
+        if (commandProcessor != null) {
+            commandProcessor.cleanup();
+            commandProcessor = null;
+        }
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+            textToSpeech = null;
         }
     }
 
@@ -1611,6 +1677,121 @@ public class MainActivity extends BaseAccessibilityActivity implements
             Log.e("MainActivity", "Ошибка при обновлении подсказок: " + e.getMessage(), e);
             // Пытаемся восстановиться - скрываем контейнер
             suggestionsScrollView.setVisibility(View.GONE);
+        }
+    }
+
+    private void setupMicButton() {
+        // Disable the mic button if RECORD_AUDIO permission is missing
+        boolean hasMicPerm = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        binding.micButton.setEnabled(hasMicPerm);
+
+        binding.micButton.setOnClickListener(v -> {
+            boolean micPerm = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+            if (!micPerm) {
+                android.widget.Toast.makeText(this, "Требуется разрешение на микрофон", android.widget.Toast.LENGTH_SHORT).show();
+                androidx.core.app.ActivityCompat.requestPermissions(this, new String[]{android.Manifest.permission.RECORD_AUDIO}, PERMISSION_REQUEST_CODE);
+                return;
+            }
+
+            if (isListening) {
+                stopInlineListening();
+            } else {
+                startInlineListening();
+            }
+        });
+    }
+
+    /**
+     * Инициализирует SpeechRecognizer, указывая кастомную службу
+     */
+    private void initSpeechRecognizer() {
+        if (speechRecognizer != null) return;
+
+        android.content.ComponentName svc = new android.content.ComponentName(this, VoiceRecognitionService.class);
+        try {
+            speechRecognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this, svc);
+        } catch (Exception e) {
+            speechRecognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(this);
+        }
+
+        speechRecognizer.setRecognitionListener(new android.speech.RecognitionListener() {
+            @Override public void onReadyForSpeech(android.os.Bundle params) {}
+            @Override public void onBeginningOfSpeech() {}
+            @Override public void onRmsChanged(float rmsdB) {}
+            @Override public void onBufferReceived(byte[] buffer) {}
+            @Override public void onEndOfSpeech() {}
+            @Override public void onError(int error) {
+                // Если не удалось связаться с нашей службой (неизвестная ошибка 10 или CLIENT), пробуем дефолтную
+                if (error == 10 || error == android.speech.SpeechRecognizer.ERROR_CLIENT) {
+                    Log.w("MainActivity", "Fallback to default SpeechRecognizer, error=" + error);
+                    try {
+                        speechRecognizer.destroy();
+                    } catch (Exception ignored) {}
+                    speechRecognizer = android.speech.SpeechRecognizer.createSpeechRecognizer(MainActivity.this);
+                    speechRecognizer.setRecognitionListener(this);
+                    startInlineListening();
+                    return;
+                }
+                isListening = false;
+                binding.micButton.setIconResource(R.drawable.ic_mic);
+            }
+            @Override public void onResults(android.os.Bundle results) {
+                java.util.ArrayList<String> list = results.getStringArrayList(android.speech.SpeechRecognizer.RESULTS_RECOGNITION);
+                if (list != null && !list.isEmpty()) {
+                    binding.messageInput.setText(list.get(0));
+                    sendMessage();
+                }
+                stopInlineListening();
+            }
+            @Override public void onPartialResults(android.os.Bundle partialResults) {}
+            @Override public void onEvent(int eventType, android.os.Bundle params) {}
+        });
+    }
+
+    private void startInlineListening() {
+        initSpeechRecognizer();
+        android.content.Intent i = new android.content.Intent(android.speech.RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE_MODEL, android.speech.RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+        i.putExtra(android.speech.RecognizerIntent.EXTRA_LANGUAGE, java.util.Locale.getDefault());
+        speechRecognizer.startListening(i);
+        isListening = true;
+        binding.micButton.setIconResource(R.drawable.ic_mic);
+    }
+
+    private void stopInlineListening() {
+        if (speechRecognizer != null && isListening) {
+            speechRecognizer.stopListening();
+        }
+        isListening = false;
+        binding.micButton.setIconResource(R.drawable.ic_mic);
+    }
+
+    private void updatePermissionDependentButtons() {
+        // Camera dependent
+        boolean hasCameraPerm = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.CAMERA) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        binding.attachButton.setEnabled(hasCameraPerm);
+        if (hasCameraPerm) {
+            binding.attachButton.setOnClickListener(v -> showAttachmentDialog());
+        } else {
+            binding.attachButton.setOnClickListener(v -> {
+                android.widget.Toast.makeText(this, "Функции вложения фото требуют разрешения на камеру", android.widget.Toast.LENGTH_SHORT).show();
+                startActivity(new android.content.Intent(this, PermissionRequestActivity.class));
+            });
+        }
+
+        // Mic dependent handled in setupMicButton (called once) but we may refresh here
+        boolean hasMicPerm = androidx.core.content.ContextCompat.checkSelfPermission(this, android.Manifest.permission.RECORD_AUDIO) == android.content.pm.PackageManager.PERMISSION_GRANTED;
+        binding.micButton.setEnabled(hasMicPerm);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        // ... existing code ...
+
+        // Передаём результат во встроенный CommandProcessor (камера, подтверждения и т.п.)
+        if (commandProcessor != null) {
+            commandProcessor.handleActivityResult(requestCode, resultCode, data);
         }
     }
 }

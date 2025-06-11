@@ -253,8 +253,9 @@ public class CommandProcessor {
         
         // Если мы в режиме пошаговой обработки, обрабатываем текущий шаг
         if (isStepByStepMode) {
-            boolean processed = processStepByStepCommand(normalizedCommand);
-            return processed ? "Обрабатываю команду..." : null;
+            // Продолжаем пошаговую обработку без промежуточного системного сообщения
+            processStepByStepCommand(normalizedCommand);
+            return null;
         }
         
         // Проверяем, является ли команда запросом на пошаговую обработку
@@ -264,9 +265,8 @@ public class CommandProcessor {
             normalizedCommand.equals("напиши смс") || 
             normalizedCommand.equals("отправь смс")) {
             
-            // Запускаем пошаговую обработку
-            startStepByStepMode("sms");
-            return "Кому вы хотите отправить сообщение?";
+            // Отказываемся от пошагового режима – считаем команду нераспознанной
+            return null;
         }
         
         // Проверяем команду на звонок в пошаговом режиме
@@ -275,9 +275,8 @@ public class CommandProcessor {
             normalizedCommand.equals("сделай звонок") || 
             normalizedCommand.equals("набери номер")) {
             
-            // Запускаем пошаговую обработку
-            startStepByStepMode("call");
-            return "Кому вы хотите позвонить?";
+            // Отказываемся от пошагового режима – просим полную команду
+            return "Укажите получателя и текст сообщения одной фразой, например: 'Отправь SMS Сергею с текстом Я буду позже'.";
         }
         
         // Проверяем команды для камеры
@@ -435,6 +434,42 @@ public class CommandProcessor {
                     response = "Открываю настройки";
                 }
                 return processed ? response : null;
+            }
+        }
+        
+        // ==== Телефонный звонок (одностадийный) ====
+        for (String pattern : phonePatterns) {
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                String phoneNumber = extractPhoneNumber(normalizedCommand);
+                String contactName = extractContactName(normalizedCommand);
+
+                // Попытка получить номер по имени контакта
+                if (phoneNumber == null && contactName != null && communicationManager != null) {
+                    ContactNlpProcessor proc = communicationManager.getContactNlpProcessor();
+                    if (proc != null) {
+                        ContactsManager.Contact contact = proc.findContactByRelationOrName(contactName);
+                        if (contact != null) {
+                            phoneNumber = contact.phoneNumber;
+                            contactName = contact.name;
+                        }
+                    }
+                }
+
+                if (phoneNumber != null) {
+                    // Есть номер – сразу звоним с подтверждением
+                    processCallCommandWithConfirmation(phoneNumber, contactName);
+                    return "Совершаю звонок" + (contactName != null ? " «" + contactName + "»" : "");
+                } else {
+                    // Контакт не найден – возвращаем понятную ошибку без перехода в пошаговый режим
+                    String errorMsg = contactName != null ?
+                            "Контакт \"" + contactName + "\" не найден." :
+                            "Не удалось распознать контакт для звонка.";
+
+                    if (commandProcessedListener != null) {
+                        commandProcessedListener.onCommandProcessed(command, errorMsg);
+                    }
+                    return errorMsg;
+                }
             }
         }
         
@@ -649,9 +684,8 @@ public class CommandProcessor {
             command.toLowerCase().equals("напиши смс") || 
             command.toLowerCase().equals("отправь смс")) {
             
-            // Запускаем пошаговую обработку
-            startStepByStepMode("sms");
-            return true;
+            // Отказываемся от пошагового режима – считаем команду нераспознанной
+            return false;
         }
         
         // Ищем контакт или номер телефона и текст сообщения
@@ -1493,7 +1527,20 @@ public class CommandProcessor {
     private String extractContactName(String command) {
         Log.d(TAG, "Извлечение имени контакта из команды: " + command);
         
-        // Сначала попробуем найти имя в дательном падеже (Мише Никитину)
+        // === 1. Дательный падеж для звонков ("позвони Мише Никитину") ===
+        Pattern dativeCallPattern = Pattern.compile(".*?(?:позвони|набери|вызов|звонок)\\s+([А-Я][а-я]+(?:\\s+[А-Я][а-я]+(?:у|ю|е)?)?)\\b.*", Pattern.CASE_INSENSITIVE);
+        Matcher dativeCallMatcher = dativeCallPattern.matcher(command);
+        if (dativeCallMatcher.find()) {
+            String dativeContact = dativeCallMatcher.group(1).trim();
+
+            // Простая нормализация: убираем окончание дательного падежа
+            if (dativeContact.toLowerCase().endsWith("у") || dativeContact.toLowerCase().endsWith("ю") || dativeContact.toLowerCase().endsWith("е")) {
+                dativeContact = dativeContact.substring(0, dativeContact.length() - 1);
+            }
+            return dativeContact;
+        }
+
+        // === 2. Дательный падеж для SMS ===
         Pattern dativePattern = Pattern.compile(".*?(?:отправь|напиши|написать|создай|отправить|напишщи)\\s+(?:смс|sms|сообщение)\\s+([А-Я][а-я]+(?:\\s+[А-Я][а-я]+(?:у|ю|е)?)?)\\s+(?:с текстом|текст|содержанием|содержание).*", Pattern.CASE_INSENSITIVE);
         Matcher dativeMatcher = dativePattern.matcher(command);
         
@@ -1857,6 +1904,13 @@ public class CommandProcessor {
             }
         }
         
+        // Проверяем телефонные звонки
+        for (String pattern : phonePatterns) {
+            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
+                return true;
+            }
+        }
+        
         // Проверяем Wi-Fi команды
         for (String pattern : wifiPatterns) {
             if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
@@ -1865,33 +1919,6 @@ public class CommandProcessor {
         }
         
         // Проверяем Bluetooth команды
-        for (String pattern : bluetoothPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
-                return true;
-            }
-        }
-        
-        // Проверяем команды местоположения
-        for (String pattern : locationPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
-                return true;
-            }
-        }
-        
-        // Проверяем команды громкости
-        for (String pattern : volumePatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
-                return true;
-            }
-        }
-        
-        // Проверяем команды настроек
-        for (String pattern : settingsPatterns) {
-            if (Pattern.compile(pattern, Pattern.CASE_INSENSITIVE).matcher(normalizedCommand).matches()) {
-                return true;
-            }
-        }
-        
         return false;
     }
 

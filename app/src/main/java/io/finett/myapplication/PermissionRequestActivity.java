@@ -174,33 +174,39 @@ public class PermissionRequestActivity extends AppCompatActivity {
                 Log.d("PermissionRequest", "Все разрешения получены, переходим в MainActivity");
                 proceedToMainActivity();
             } else {
-                if (somePermissionPermanentlyDenied) {
-                    // Если пользователь отказал с галочкой "Больше не спрашивать", предлагаем перейти в настройки
-                    Log.d("PermissionRequest", "Предлагаем перейти в настройки для включения разрешений");
-                    showSettingsDialog();
+                // Показываем краткое уведомление и продолжаем в приложение вне зависимости от результата
+                if (!somePermissionPermanentlyDenied) {
+                    Toast.makeText(this, R.string.permissions_denied_toast, Toast.LENGTH_SHORT).show();
                 } else {
-                    Toast.makeText(this, R.string.permissions_denied_toast, Toast.LENGTH_LONG).show();
-                    // Обновляем статус и объяснение
-                    Log.d("PermissionRequest", "Отказано в некоторых разрешениях, обновляем экран");
-                    statusTextView.setText(R.string.permissions_required_explanation);
-                    // Обновляем экран
-                    checkPermissions();
+                    // Можно дополнительно предложить настройки, но не блокируем поток
+                    showSettingsDialog();
                 }
+
+                Log.d("PermissionRequest", "Продолжаем работу приложения даже без всех разрешений");
+                proceedToMainActivity();
+                return;
             }
+
+            // На всякий случай, если вышли без return — идём дальше
+            proceedToMainActivity();
         }
     }
 
     private void proceedToMainActivity() {
+        // Сохраняем флаг, что разрешения были запрошены (для MainActivity)
+        getSharedPreferences("AlanPrefs", MODE_PRIVATE)
+                .edit()
+                .putBoolean("permissions_requested", true)
+                .apply();
+
         // Determine if this is the first launch to show onboarding
         SharedPreferences prefs = getSharedPreferences("AlanPrefs", MODE_PRIVATE);
         boolean isFirstTime = OnboardingActivity.shouldShowOnboarding(prefs);
         
         Intent intent;
         if (isFirstTime) {
-            // First time users go to onboarding
             intent = new Intent(this, OnboardingActivity.class);
         } else {
-            // Returning users go straight to the main activity
             intent = new Intent(this, MainActivity.class);
         }
         

@@ -343,33 +343,8 @@ public class VoiceChatActivity extends BaseAccessibilityActivity implements Text
     }
 
     private void showApiKeyDialog() {
-        AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Введите ваш API ключ");
-        builder.setMessage("Для работы с OpenRouter API необходим ключ. Вы можете получить его на сайте openrouter.ai");
-
-        final EditText input = new EditText(this);
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT);
-        if (apiKey != null && !apiKey.isEmpty()) {
-            input.setText(apiKey);
-        }
-        builder.setView(input);
-
-        builder.setPositiveButton("Сохранить", (dialog, which) -> {
-            String key = input.getText().toString().trim();
-            if (!key.isEmpty()) {
-                // Сохраняем API ключ только если не используем хардкодный ключ из BuildConfig
-                if (!BuildConfig.USE_HARDCODED_KEY) {
-                    SharedPreferences prefs = getSharedPreferences("ApiPrefs", MODE_PRIVATE);
-                    prefs.edit().putString("api_key", key).apply();
-                }
-                apiKey = key;
-                
-                // Больше не добавляем приветственное сообщение
-            }
-        });
-        
-        builder.setCancelable(false);
-        builder.show();
+        // Диалог ввода API ключа отключен – приложение использует встроенный ключ.
+        android.util.Log.i(TAG, "API-key dialog suppressed – using embedded key");
     }
 
     private void checkPermissionAndInitRecognizer() {

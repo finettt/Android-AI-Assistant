@@ -9,11 +9,11 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 
 ## Features
 
-### 🎤 Voice Control
-- Voice command recognition in English and Russian
-- Natural dialogues with the assistant
-- Automatic silence detection
-- Voice feedback
+### 🎤 Voice & Text Control (Unified)
+- Single chat screen supports voice dictation and typed messages
+- Automatic microphone permission request on first launch
+- Natural dialogues in English and Russian
+- Silence detection & voice feedback
 
 ### 🌐 Web Browser
 - Built-in web page viewing via Chrome Custom Tabs
@@ -33,11 +33,10 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 - Quick access to system controls
 - Voice-activated device management
 
-### ♿ Accessibility
-- High contrast mode
-- Adjustable text size
-- Voice and vibration feedback
-- Screen reader optimized structure
+### ♿ Accessibility & Permissions
+- High-contrast mode and dynamic theme (light / dark)
+- Runtime permission helper – requests only once and remembers choice
+- Screen-reader friendly UI with vibration feedback
 
 ### 🌍 Multilingual Support
 - Complete English and Russian localization
@@ -45,14 +44,13 @@ An intelligent voice assistant for Android with advanced camera capabilities and
 - Easy to add more languages through resource files
 
 ### 📞 Telephony and Messages
-- Voice dialing
-- Contact search by name
-- SMS messaging
-- Safety confirmation dialogs
+- Voice dialing with fuzzy-match contact search (supports relations like "mom")
+- SMS messaging with confirmation dialogues
+- Immediate feedback if contact is not found
 
 ## Technology Stack
 
-For a comprehensive overview of all technologies used in this project, please see the [Technical Stack](TECH_STACK.md) document.
+For a comprehensive overview of all technologies used in this project, please see the updated [Technical Stack](TECH_STACK.md) document.
 
 Key technologies include:
 - Java for core development
@@ -77,8 +75,8 @@ Before building the project, you need to set up API keys:
 
 1. Create a `secrets.properties` file with this template for API keys.
 ```properties
-WEATHER_API_KEY=your_weather_api_key_here 
-OPENROUTER_API_KEY=your_openrouter_api_key_here
+WEATHER_API_KEY=your_weather_api_key
+OPENROUTER_API_KEY=your_openrouter_api_key
 ``` 
 
 3. Edit the created file, specifying your real API keys. You can use my demo key `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` for testing
@@ -181,7 +179,17 @@ MIT License. See [LICENSE](LICENSE) file for details.
 
 ## Changelog
 
-### v1.3.0 (Current)
+### v1.4.0 (Current)
+- Merged voice & text chat into one screen with inline microphone
+- Automatic runtime permission flow (no separate PermissionRequestActivity)
+- Embedded default OpenRouter API key for seamless first-run experience
+- Contact search rewritten with fuzzy matching & relation mapping
+- Removed transient "Обрабатываю команду…" system message for cleaner chat
+- Added retry logic for OpenRouter API calls
+- Improved dark-theme colors across all screens
+- Numerous bug fixes and performance improvements
+
+### v1.3.0
 - Added System Assistant with transparent overlay UI
 - Implemented gesture-based activation for quick access
 - Added direct speech recognition using SpeechRecognizer
