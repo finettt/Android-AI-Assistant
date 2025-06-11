@@ -1,8 +1,7 @@
 # Alan - Your AI Assistant
 
 An intelligent voice assistant for Android with advanced camera capabilities and accessibility features. The application provides a convenient interface for voice control of your device, making calls, sending messages, and analyzing images.
-# You can download app there: [Google Drive](https://drive.google.com/file/d/1TAs1MCJz74aQZ3NMTKRcaHhQqOjcIhgV/view?usp=sharing)
-
+# You can download app there: [Google Drive](https://drive.google.com/file/d/1v-wNEQf61_qFqfXpC-7SMuEKtwMRO9us/view?usp=sharing)
 # Disclaimer!
 
 #### Now there are difficulties with access to models; if you have problems, you should either wait a while or independently change the models in the code to those that work for you
