@@ -78,7 +78,7 @@ WEATHER_API_KEY=your_weather_api_key
 OPENROUTER_API_KEY=your_openrouter_api_key
 ``` 
 
-3. Edit the created file, specifying your real API keys. You can use my demo key `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` for testing
+3. Edit the created file, specifying your real API keys.
 
 ### Via Android Studio
 1. Clone the repository:
